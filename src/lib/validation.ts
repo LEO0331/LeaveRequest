@@ -1,3 +1,4 @@
+import { LEAVE_QUOTAS } from './constants';
 import { calculateDurationDays } from './date';
 import { LeaveRequest, LeaveRequestDraft, ValidationErrors } from '../types';
 
@@ -22,7 +23,7 @@ export function hasOverlap(
       return false;
     }
 
-    if (record.status === 'Cancelled') {
+    if (record.status === 'Cancelled' || record.status === 'Rejected') {
       return false;
     }
 
@@ -74,6 +75,16 @@ export function validateDraft(
     }
   }
 
+  if (draft.userId && draft.leaveType && duration > 0) {
+    const usedDays = getUsedLeaveDays(existing, draft.userId, draft.leaveType, editingId);
+    const quota = LEAVE_QUOTAS[draft.leaveType];
+    const remaining = quota - usedDays;
+
+    if (duration > remaining) {
+      errors.balance = `Insufficient balance. Remaining ${remaining.toFixed(2)} days, requested ${duration.toFixed(2)} days.`;
+    }
+  }
+
   if (!draft.reason.trim()) {
     errors.reason = 'Reason cannot be empty.';
   } else if (draft.reason.trim().length > 50) {
@@ -81,4 +92,25 @@ export function validateDraft(
   }
 
   return errors;
+}
+
+export function getUsedLeaveDays(
+  existing: LeaveRequest[],
+  userId: string,
+  leaveType: LeaveRequest['leaveType'],
+  editingId?: string
+): number {
+  return existing
+    .filter((record) => {
+      if (record.id === editingId) {
+        return false;
+      }
+
+      if (record.userId !== userId || record.leaveType !== leaveType) {
+        return false;
+      }
+
+      return record.status === 'Submitted' || record.status === 'Approved';
+    })
+    .reduce((sum, record) => sum + record.durationDays, 0);
 }

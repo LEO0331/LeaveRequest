@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { ChangeEvent, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Box,
@@ -33,16 +33,29 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import BlockIcon from '@mui/icons-material/Block';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import DeleteIcon from '@mui/icons-material/Delete';
+import DownloadIcon from '@mui/icons-material/Download';
 import EditIcon from '@mui/icons-material/Edit';
-import { LEAVE_TYPES, USERS } from './lib/constants';
+import FileUploadIcon from '@mui/icons-material/FileUpload';
+import HighlightOffIcon from '@mui/icons-material/HighlightOff';
+import { LEAVE_QUOTAS, LEAVE_TYPES, USERS } from './lib/constants';
+import { requestsToCsv, parseCsv } from './lib/csv';
 import { calculateDurationDays, formatDateTime, toInputDateTime } from './lib/date';
 import { loadLeaveRequests, saveLeaveRequests, toLeaveRequest } from './lib/storage';
-import { validateDraft } from './lib/validation';
-import { LeaveRequest, LeaveRequestDraft, ValidationErrors } from './types';
+import { getUsedLeaveDays, validateDraft } from './lib/validation';
+import { ActorRole, LeaveRequest, LeaveRequestDraft, LeaveStatus, ValidationErrors } from './types';
 
-type SortField = 'userName' | 'client' | 'leaveType' | 'startDate' | 'endDate' | 'durationDays';
+type SortField =
+  | 'userName'
+  | 'client'
+  | 'leaveType'
+  | 'startDate'
+  | 'endDate'
+  | 'durationDays'
+  | 'status';
 type SortDirection = 'asc' | 'desc';
+type ActionType = 'cancel' | 'delete' | 'approve' | 'reject';
 
 function sortRequests(items: LeaveRequest[], field: SortField, direction: SortDirection): LeaveRequest[] {
   const sorted = [...items].sort((a, b) => {
@@ -80,10 +93,59 @@ function draftFromRequest(item: LeaveRequest): LeaveRequestDraft {
   };
 }
 
+function statusColor(status: LeaveStatus): 'default' | 'success' | 'warning' | 'error' {
+  if (status === 'Approved') {
+    return 'success';
+  }
+
+  if (status === 'Submitted') {
+    return 'warning';
+  }
+
+  if (status === 'Rejected') {
+    return 'error';
+  }
+
+  return 'default';
+}
+
+function appendHistory(
+  record: LeaveRequest,
+  action: 'Edited' | 'Approved' | 'Rejected' | 'Cancelled' | 'Deleted' | 'Imported',
+  actorRole: ActorRole,
+  note?: string
+): LeaveRequest {
+  return {
+    ...record,
+    updatedAt: new Date().toISOString(),
+    history: [
+      ...record.history,
+      {
+        action,
+        at: new Date().toISOString(),
+        actorRole,
+        note
+      }
+    ]
+  };
+}
+
+function downloadCsv(content: string, filename: string): void {
+  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function App() {
   const [requests, setRequests] = useState<LeaveRequest[]>(() => loadLeaveRequests());
+  const [actingRole, setActingRole] = useState<ActorRole>('Employee');
   const [globalSearch, setGlobalSearch] = useState('');
   const [userFilter, setUserFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | LeaveStatus>('all');
   const [startFromFilter, setStartFromFilter] = useState('');
   const [endToFilter, setEndToFilter] = useState('');
   const [sortField, setSortField] = useState<SortField>('startDate');
@@ -100,10 +162,13 @@ export default function App() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [showSuccess, setShowSuccess] = useState(false);
-  const [successMessage, setSuccessMessage] = useState('Leave request saved successfully.');
+  const [successMessage, setSuccessMessage] = useState('Leave request submitted.');
+  const [showError, setShowError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
   const [isActionPending, setIsActionPending] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<LeaveRequest | null>(null);
-  const [cancelTarget, setCancelTarget] = useState<LeaveRequest | null>(null);
+  const [actionType, setActionType] = useState<ActionType | null>(null);
+  const [actionTarget, setActionTarget] = useState<LeaveRequest | null>(null);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
 
   const selectedRequest = useMemo(
     () => requests.find((entry) => entry.id === selectedId) ?? null,
@@ -115,6 +180,10 @@ export default function App() {
 
     const filtered = requests.filter((item) => {
       if (userFilter !== 'all' && item.userId !== userFilter) {
+        return false;
+      }
+
+      if (statusFilter !== 'all' && item.status !== statusFilter) {
         return false;
       }
 
@@ -136,13 +205,12 @@ export default function App() {
         return true;
       }
 
-      const haystack =
-        `${item.id} ${item.userName} ${item.client} ${item.leaveType} ${item.status} ${item.reason}`.toLowerCase();
+      const haystack = `${item.id} ${item.userName} ${item.client} ${item.leaveType} ${item.status} ${item.reason}`.toLowerCase();
       return haystack.includes(q);
     });
 
     return sortRequests(filtered, sortField, sortDirection);
-  }, [requests, globalSearch, userFilter, startFromFilter, endToFilter, sortField, sortDirection]);
+  }, [requests, globalSearch, userFilter, statusFilter, startFromFilter, endToFilter, sortField, sortDirection]);
 
   const pagedRequests = useMemo(() => {
     const start = page * rowsPerPage;
@@ -162,6 +230,22 @@ export default function App() {
     () => calculateDurationDays(formDraft.startDate, formDraft.endDate),
     [formDraft.startDate, formDraft.endDate]
   );
+
+  const balanceSummary = useMemo(() => {
+    if (!formDraft.userId || !formDraft.leaveType) {
+      return null;
+    }
+
+    const quota = LEAVE_QUOTAS[formDraft.leaveType];
+    const used = getUsedLeaveDays(requests, formDraft.userId, formDraft.leaveType, isEditMode ? formDraft.id : undefined);
+    const remaining = quota - used;
+
+    return {
+      quota,
+      used,
+      remaining
+    };
+  }, [formDraft.userId, formDraft.leaveType, requests, isEditMode, formDraft.id]);
 
   function onSort(nextField: SortField): void {
     if (sortField === nextField) {
@@ -199,6 +283,13 @@ export default function App() {
     setFormDraft((current) => ({ ...current, [key]: value }));
   }
 
+  function persistAndNotify(next: LeaveRequest[], message: string): void {
+    setRequests(next);
+    saveLeaveRequests(next);
+    setSuccessMessage(message);
+    setShowSuccess(true);
+  }
+
   async function handleSave(): Promise<void> {
     const errors = validateDraft(formDraft, requests, isEditMode ? formDraft.id : undefined);
     setFormErrors(errors);
@@ -208,13 +299,12 @@ export default function App() {
     }
 
     setIsSubmitting(true);
-
     await new Promise((resolve) => {
-      window.setTimeout(resolve, 500);
+      window.setTimeout(resolve, 400);
     });
 
-    const createdAtFallback = new Date().toISOString();
-    const normalized = toLeaveRequest(formDraft, createdAtFallback);
+    const nowIso = new Date().toISOString();
+    const normalized = toLeaveRequest(formDraft, nowIso, actingRole);
 
     const next = isEditMode
       ? requests.map((entry) => {
@@ -222,66 +312,85 @@ export default function App() {
             return entry;
           }
 
-          return {
+          const edited = {
+            ...entry,
             ...normalized,
             status: entry.status,
-            createdAt: entry.createdAt
+            createdAt: entry.createdAt,
+            updatedAt: nowIso,
+            history: entry.history
           };
+
+          return appendHistory(edited, 'Edited', actingRole);
         })
       : [normalized, ...requests];
 
-    setRequests(next);
-    saveLeaveRequests(next);
+    persistAndNotify(next, isEditMode ? 'Leave request updated.' : 'Leave request submitted.');
     setFormOpen(false);
     setSelectedId(normalized.id);
-    setSuccessMessage('Leave request saved successfully.');
-    setShowSuccess(true);
     setIsSubmitting(false);
   }
 
-  async function handleCancelRequest(): Promise<void> {
-    if (!cancelTarget) {
-      return;
-    }
-
-    setIsActionPending(true);
-    await new Promise((resolve) => {
-      window.setTimeout(resolve, 350);
-    });
-
-    const next = requests.map((entry) =>
-      entry.id === cancelTarget.id ? { ...entry, status: 'Cancelled' as const } : entry
-    );
-
-    setRequests(next);
-    saveLeaveRequests(next);
-    setSelectedId(cancelTarget.id);
-    setCancelTarget(null);
-    setIsActionPending(false);
-    setSuccessMessage('Leave request cancelled.');
-    setShowSuccess(true);
+  function openActionDialog(type: ActionType, request: LeaveRequest): void {
+    setActionType(type);
+    setActionTarget(request);
   }
 
-  async function handleDeleteRequest(): Promise<void> {
-    if (!deleteTarget) {
+  async function handleConfirmAction(): Promise<void> {
+    if (!actionTarget || !actionType) {
       return;
     }
 
     setIsActionPending(true);
     await new Promise((resolve) => {
-      window.setTimeout(resolve, 350);
+      window.setTimeout(resolve, 300);
     });
 
-    const next = requests.filter((entry) => entry.id !== deleteTarget.id);
-    setRequests(next);
-    saveLeaveRequests(next);
-    if (selectedId === deleteTarget.id) {
-      setSelectedId(null);
+    if (actionType === 'delete') {
+      const next = requests.filter((entry) => entry.id !== actionTarget.id);
+      persistAndNotify(next, 'Leave request deleted.');
+      if (selectedId === actionTarget.id) {
+        setSelectedId(null);
+      }
+    } else {
+      const statusMap: Record<Exclude<ActionType, 'delete'>, LeaveStatus> = {
+        cancel: 'Cancelled',
+        approve: 'Approved',
+        reject: 'Rejected'
+      };
+
+      const actionMap: Record<Exclude<ActionType, 'delete'>, 'Cancelled' | 'Approved' | 'Rejected'> = {
+        cancel: 'Cancelled',
+        approve: 'Approved',
+        reject: 'Rejected'
+      };
+
+      const next = requests.map((entry) => {
+        if (entry.id !== actionTarget.id) {
+          return entry;
+        }
+
+        const updated: LeaveRequest = {
+          ...entry,
+          status: statusMap[actionType],
+          updatedAt: new Date().toISOString()
+        };
+
+        return appendHistory(updated, actionMap[actionType], actingRole);
+      });
+
+      const messageMap: Record<Exclude<ActionType, 'delete'>, string> = {
+        cancel: 'Leave request cancelled.',
+        approve: 'Leave request approved.',
+        reject: 'Leave request rejected.'
+      };
+
+      persistAndNotify(next, messageMap[actionType]);
     }
-    setDeleteTarget(null);
+
+    setActionType(null);
+    setActionTarget(null);
     setIsActionPending(false);
-    setSuccessMessage('Leave request deleted.');
-    setShowSuccess(true);
   }
 
   function sortLabel(field: SortField, label: string): string {
@@ -297,6 +406,99 @@ export default function App() {
     setPage(0);
   }
 
+  function handleExportCsv(): void {
+    const csv = requestsToCsv(filteredRequests);
+    const stamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+    downloadCsv(csv, `leave-requests-${stamp}.csv`);
+  }
+
+  async function handleImportFile(event: ChangeEvent<HTMLInputElement>): Promise<void> {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    try {
+      const content = await file.text();
+      const parsed = parseCsv(content);
+
+      if (parsed.length === 0) {
+        setErrorMessage('No valid rows found in CSV import file.');
+        setShowError(true);
+        return;
+      }
+
+      const map = new Map(requests.map((row) => [row.id, row]));
+      parsed.forEach((row) => {
+        const existing = map.get(row.id);
+        if (existing) {
+          map.set(
+            row.id,
+            appendHistory(
+              {
+                ...existing,
+                ...row,
+                history: existing.history,
+                updatedAt: new Date().toISOString()
+              },
+              'Imported',
+              'Manager',
+              'Row updated from CSV import'
+            )
+          );
+          return;
+        }
+
+        map.set(row.id, row);
+      });
+
+      const next = Array.from(map.values());
+      persistAndNotify(next, `Imported ${parsed.length} record(s) from CSV.`);
+    } catch {
+      setErrorMessage('CSV import failed. Please verify file format.');
+      setShowError(true);
+    } finally {
+      event.target.value = '';
+    }
+  }
+
+  const canApproveReject = actingRole === 'Manager' && selectedRequest?.status === 'Submitted';
+  const canCancel =
+    actingRole === 'Employee' &&
+    selectedRequest &&
+    (selectedRequest.status === 'Submitted' || selectedRequest.status === 'Approved');
+  const canDelete = actingRole === 'Manager' && Boolean(selectedRequest);
+  const canEdit =
+    selectedRequest &&
+    (selectedRequest.status === 'Submitted' || selectedRequest.status === 'Approved');
+
+  const actionDialogTitle =
+    actionType === 'approve'
+      ? 'Approve Leave Request'
+      : actionType === 'reject'
+        ? 'Reject Leave Request'
+        : actionType === 'cancel'
+          ? 'Cancel Leave Request'
+          : 'Delete Leave Request';
+
+  const actionDialogBody =
+    actionType === 'approve'
+      ? 'This will mark the request as approved.'
+      : actionType === 'reject'
+        ? 'This will mark the request as rejected.'
+        : actionType === 'cancel'
+          ? 'This will mark the request as cancelled and keep it in history.'
+          : 'This will permanently remove the request from local storage.';
+
+  const actionDialogConfirm =
+    actionType === 'approve'
+      ? 'Confirm Approve'
+      : actionType === 'reject'
+        ? 'Confirm Reject'
+        : actionType === 'cancel'
+          ? 'Confirm Cancel'
+          : 'Confirm Delete';
+
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
       <Stack spacing={3}>
@@ -306,12 +508,46 @@ export default function App() {
               Leave Management System
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Local-storage backed dashboard with 10,000+ records for load testing
+              Approval workflow, leave balance controls, and CSV import/export
             </Typography>
           </Box>
-          <Button variant="contained" startIcon={<AddIcon />} onClick={openCreateForm}>
-            Add New Leave Request
-          </Button>
+          <Stack direction="row" spacing={1} flexWrap="wrap">
+            <FormControl sx={{ minWidth: 130 }}>
+              <InputLabel id="role-select-label">Role</InputLabel>
+              <Select
+                labelId="role-select-label"
+                label="Role"
+                value={actingRole}
+                onChange={(event) => setActingRole(event.target.value as ActorRole)}
+              >
+                <MenuItem value="Employee">Employee</MenuItem>
+                <MenuItem value="Manager">Manager</MenuItem>
+              </Select>
+            </FormControl>
+            <Button variant="outlined" startIcon={<DownloadIcon />} onClick={handleExportCsv}>
+              Export CSV
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={<FileUploadIcon />}
+              onClick={() => importInputRef.current?.click()}
+              disabled={actingRole !== 'Manager'}
+            >
+              Import CSV
+            </Button>
+            <Button variant="contained" startIcon={<AddIcon />} onClick={openCreateForm}>
+              Add New Leave Request
+            </Button>
+          </Stack>
+          <input
+            ref={importInputRef}
+            type="file"
+            accept=".csv,text/csv"
+            style={{ display: 'none' }}
+            onChange={(event) => {
+              void handleImportFile(event);
+            }}
+          />
         </Stack>
 
         <Paper sx={{ p: 2 }}>
@@ -324,7 +560,7 @@ export default function App() {
                 setGlobalSearch(event.target.value);
                 setPage(0);
               }}
-              placeholder="Search by keyword, user, leave type, reason, or id"
+              placeholder="Search by user, leave type, status, reason, or id"
             />
 
             <FormControl sx={{ minWidth: 180 }}>
@@ -341,6 +577,25 @@ export default function App() {
                     {user.name}
                   </MenuItem>
                 ))}
+              </Select>
+            </FormControl>
+
+            <FormControl sx={{ minWidth: 180 }}>
+              <InputLabel id="filter-status-label">Status</InputLabel>
+              <Select
+                labelId="filter-status-label"
+                label="Status"
+                value={statusFilter}
+                onChange={(event) => {
+                  setStatusFilter(event.target.value as 'all' | LeaveStatus);
+                  setPage(0);
+                }}
+              >
+                <MenuItem value="all">All Statuses</MenuItem>
+                <MenuItem value="Submitted">Submitted</MenuItem>
+                <MenuItem value="Approved">Approved</MenuItem>
+                <MenuItem value="Rejected">Rejected</MenuItem>
+                <MenuItem value="Cancelled">Cancelled</MenuItem>
               </Select>
             </FormControl>
 
@@ -368,15 +623,10 @@ export default function App() {
           </Stack>
 
           <Stack mt={2} direction="row" alignItems="center" spacing={1}>
-            <Switch
-              checked={groupByClient}
-              onChange={(event) => setGroupByClient(event.target.checked)}
-            />
+            <Switch checked={groupByClient} onChange={(event) => setGroupByClient(event.target.checked)} />
             <Typography variant="body2">Group by client summary</Typography>
             {groupByClient &&
-              groupSummary.map(([client, count]) => (
-                <Chip key={client} size="small" label={`${client}: ${count}`} />
-              ))}
+              groupSummary.map(([client, count]) => <Chip key={client} size="small" label={`${client}: ${count}`} />)}
           </Stack>
         </Paper>
 
@@ -415,7 +665,11 @@ export default function App() {
                       {sortLabel('durationDays', 'Days')}
                     </Button>
                   </TableCell>
-                  <TableCell>Status</TableCell>
+                  <TableCell>
+                    <Button size="small" onClick={() => onSort('status')}>
+                      {sortLabel('status', 'Status')}
+                    </Button>
+                  </TableCell>
                   <TableCell>Reason</TableCell>
                 </TableRow>
               </TableHead>
@@ -435,11 +689,7 @@ export default function App() {
                     <TableCell>{formatDateTime(item.endDate)}</TableCell>
                     <TableCell>{item.durationDays.toFixed(2)}</TableCell>
                     <TableCell>
-                      <Chip
-                        size="small"
-                        color={item.status === 'Cancelled' ? 'default' : 'success'}
-                        label={item.status}
-                      />
+                      <Chip size="small" color={statusColor(item.status)} label={item.status} />
                     </TableCell>
                     <TableCell>{item.reason}</TableCell>
                   </TableRow>
@@ -462,12 +712,8 @@ export default function App() {
         </Paper>
       </Stack>
 
-      <Drawer
-        anchor="right"
-        open={Boolean(selectedRequest)}
-        onClose={() => setSelectedId(null)}
-      >
-        <Box sx={{ width: { xs: 320, sm: 420 }, p: 3 }}>
+      <Drawer anchor="right" open={Boolean(selectedRequest)} onClose={() => setSelectedId(null)}>
+        <Box sx={{ width: { xs: 320, sm: 450 }, p: 3 }}>
           {selectedRequest && (
             <Stack spacing={2}>
               <Typography variant="h6">Leave Request Details</Typography>
@@ -476,35 +722,57 @@ export default function App() {
               <Typography variant="body2">Client: {selectedRequest.client}</Typography>
               <Typography variant="body2">Type: {selectedRequest.leaveType}</Typography>
               <Typography variant="body2">
-                Status:{' '}
-                <Chip
-                  size="small"
-                  color={selectedRequest.status === 'Cancelled' ? 'default' : 'success'}
-                  label={selectedRequest.status}
-                />
+                Status: <Chip size="small" color={statusColor(selectedRequest.status)} label={selectedRequest.status} />
               </Typography>
-              <Typography variant="body2">
-                Start: {formatDateTime(selectedRequest.startDate)}
-              </Typography>
+              <Typography variant="body2">Start: {formatDateTime(selectedRequest.startDate)}</Typography>
               <Typography variant="body2">End: {formatDateTime(selectedRequest.endDate)}</Typography>
-              <Typography variant="body2">
-                Duration: {selectedRequest.durationDays.toFixed(2)} days
-              </Typography>
+              <Typography variant="body2">Duration: {selectedRequest.durationDays.toFixed(2)} business days</Typography>
               <Typography variant="body2">Reason: {selectedRequest.reason}</Typography>
+
+              <Typography variant="subtitle2" sx={{ mt: 1 }}>
+                Audit Trail
+              </Typography>
+              <Stack spacing={0.75}>
+                {selectedRequest.history.slice().reverse().slice(0, 8).map((entry, index) => (
+                  <Typography key={`${entry.at}-${index}`} variant="caption" color="text.secondary">
+                    {formatDateTime(entry.at)} | {entry.actorRole} | {entry.action}
+                    {entry.note ? ` | ${entry.note}` : ''}
+                  </Typography>
+                ))}
+              </Stack>
+
               <Button
                 variant="outlined"
                 startIcon={<EditIcon />}
                 onClick={() => openEditForm(selectedRequest)}
-                disabled={selectedRequest.status === 'Cancelled'}
+                disabled={!canEdit}
               >
                 Edit Request
               </Button>
               <Button
                 variant="outlined"
+                color="success"
+                startIcon={<CheckCircleIcon />}
+                disabled={!canApproveReject}
+                onClick={() => openActionDialog('approve', selectedRequest)}
+              >
+                Approve Request
+              </Button>
+              <Button
+                variant="outlined"
+                color="error"
+                startIcon={<HighlightOffIcon />}
+                disabled={!canApproveReject}
+                onClick={() => openActionDialog('reject', selectedRequest)}
+              >
+                Reject Request
+              </Button>
+              <Button
+                variant="outlined"
                 color="warning"
                 startIcon={<BlockIcon />}
-                disabled={selectedRequest.status === 'Cancelled'}
-                onClick={() => setCancelTarget(selectedRequest)}
+                disabled={!canCancel}
+                onClick={() => openActionDialog('cancel', selectedRequest)}
               >
                 Cancel Request
               </Button>
@@ -512,7 +780,8 @@ export default function App() {
                 variant="outlined"
                 color="error"
                 startIcon={<DeleteIcon />}
-                onClick={() => setDeleteTarget(selectedRequest)}
+                disabled={!canDelete}
+                onClick={() => openActionDialog('delete', selectedRequest)}
               >
                 Delete Request
               </Button>
@@ -527,6 +796,7 @@ export default function App() {
           <Stack spacing={2} mt={1}>
             {formErrors.overlap && <Alert severity="error">{formErrors.overlap}</Alert>}
             {formErrors.duration && <Alert severity="error">{formErrors.duration}</Alert>}
+            {formErrors.balance && <Alert severity="error">{formErrors.balance}</Alert>}
 
             <FormControl fullWidth error={Boolean(formErrors.userId)}>
               <InputLabel id="form-user-label">User</InputLabel>
@@ -572,6 +842,13 @@ export default function App() {
               )}
             </FormControl>
 
+            {balanceSummary && (
+              <Alert severity={balanceSummary.remaining < formDuration ? 'warning' : 'info'}>
+                Quota: {balanceSummary.quota.toFixed(2)} days | Used: {balanceSummary.used.toFixed(2)} days |
+                Remaining: {balanceSummary.remaining.toFixed(2)} days
+              </Alert>
+            )}
+
             <TextField
               label="Start Date"
               type="datetime-local"
@@ -606,7 +883,7 @@ export default function App() {
             />
 
             <TextField
-              label="Calculated Days (floor to 2 decimals)"
+              label="Calculated Business Days (weekends/holidays excluded)"
               value={formDuration.toFixed(2)}
               InputProps={{ readOnly: true }}
               fullWidth
@@ -615,7 +892,7 @@ export default function App() {
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button onClick={closeForm} disabled={isSubmitting}>
-            Cancel
+            Close
           </Button>
           <Button
             variant="contained"
@@ -625,67 +902,58 @@ export default function App() {
             disabled={isSubmitting}
             startIcon={isSubmitting ? <CircularProgress size={14} color="inherit" /> : undefined}
           >
-            {isSubmitting ? 'Saving...' : 'Save'}
+            {isSubmitting ? 'Saving...' : isEditMode ? 'Save Changes' : 'Submit Request'}
           </Button>
         </DialogActions>
       </Dialog>
 
-      <Dialog open={Boolean(cancelTarget)} onClose={() => setCancelTarget(null)}>
-        <DialogTitle>Cancel Leave Request</DialogTitle>
+      <Dialog open={Boolean(actionType && actionTarget)} onClose={() => setActionType(null)}>
+        <DialogTitle>{actionDialogTitle}</DialogTitle>
         <DialogContent>
-          <DialogContentText>
-            This will mark the request as cancelled and keep it in the history.
-          </DialogContentText>
+          <DialogContentText>{actionDialogBody}</DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setCancelTarget(null)} disabled={isActionPending}>
+          <Button
+            onClick={() => {
+              setActionType(null);
+              setActionTarget(null);
+            }}
+            disabled={isActionPending}
+          >
             Back
           </Button>
           <Button
             variant="contained"
-            color="warning"
+            color={actionType === 'delete' || actionType === 'reject' ? 'error' : actionType === 'cancel' ? 'warning' : 'success'}
             disabled={isActionPending}
             onClick={() => {
-              void handleCancelRequest();
+              void handleConfirmAction();
             }}
           >
-            {isActionPending ? 'Cancelling...' : 'Confirm Cancel'}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      <Dialog open={Boolean(deleteTarget)} onClose={() => setDeleteTarget(null)}>
-        <DialogTitle>Delete Leave Request</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            This will permanently delete the selected request from local storage.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteTarget(null)} disabled={isActionPending}>
-            Back
-          </Button>
-          <Button
-            variant="contained"
-            color="error"
-            disabled={isActionPending}
-            onClick={() => {
-              void handleDeleteRequest();
-            }}
-          >
-            {isActionPending ? 'Deleting...' : 'Confirm Delete'}
+            {isActionPending ? 'Processing...' : actionDialogConfirm}
           </Button>
         </DialogActions>
       </Dialog>
 
       <Snackbar
         open={showSuccess}
-        autoHideDuration={2000}
+        autoHideDuration={2200}
         onClose={() => setShowSuccess(false)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
         <Alert severity="success" variant="filled" onClose={() => setShowSuccess(false)}>
           {successMessage}
+        </Alert>
+      </Snackbar>
+
+      <Snackbar
+        open={showError}
+        autoHideDuration={2600}
+        onClose={() => setShowError(false)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity="error" variant="filled" onClose={() => setShowError(false)}>
+          {errorMessage}
         </Alert>
       </Snackbar>
     </Container>

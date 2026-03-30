@@ -1,33 +1,49 @@
 # Leave Management System
 
-Interactive Leave Management System built with React, TypeScript, and MUI to manage, filter, validate, and load-test employee leave requests.
+Interactive Leave Management System built with React, TypeScript, and MUI to manage, approve, validate, and load-test employee leave requests.
 
 ## Features
 
 - 10,000+ seeded leave requests (Faker) persisted in browser local storage.
+- Role-aware workflow (`Employee` / `Manager`) with statuses:
+  - `Submitted`
+  - `Approved`
+  - `Rejected`
+  - `Cancelled`
+- Audit trail per request, including create/edit/approve/reject/cancel/import events.
 - Dashboard table with:
   - Global keyword search
-  - User/date filtering
+  - User/date/status filtering
   - Column sorting
   - Optional grouping summary by client
-- Request details drawer with actions:
+- Request details drawer actions:
   - Edit request
-  - Cancel request (keeps history, marks status as `Cancelled`)
-  - Delete request (permanent removal)
-- Leave request form with:
-  - Start/end datetime pickers
-  - Leave type dropdown (`Personal`, `Sick`, `Vacation`, `Bereavement`)
-  - User dropdown (~10 users)
-  - Reason field limited to 50 characters
-  - Dynamic duration calculation with floor-to-2-decimals logic (`4.376 -> 4.37`)
-- Save-time validation:
-  - Overlap with existing active leave periods
-  - Start date in the past
-  - End date before start date
-  - Empty reason
-  - Zero/negative duration
-  - Missing leave type/user
-- Submission loading state and success notification toast.
+  - Approve request (Manager)
+  - Reject request (Manager)
+  - Cancel request (Employee)
+  - Delete request (Manager)
+- Leave balance tracking by leave type quota:
+  - Personal: 7 days
+  - Sick: 10 days
+  - Vacation: 15 days
+  - Bereavement: 5 days
+- Balance-aware validation blocks requests that exceed remaining quota.
+- Business-day duration calculation excludes weekends and configured company holidays.
+- CSV import/export for bulk operations:
+  - Export filtered rows to CSV
+  - Import CSV (upsert by `id`) from Manager role
+
+## Validation Rules
+
+Validation runs on submit/save and blocks if:
+
+- Request overlaps with another active period for the same user.
+- Start date is in the past.
+- End date is before start date.
+- Reason is empty.
+- Calculated duration is zero/negative.
+- Leave type or user is missing.
+- Requested duration exceeds remaining leave balance.
 
 ## Tech Stack
 
@@ -74,12 +90,32 @@ Tests are included for:
 
 - Date utilities in [src/lib/date.test.ts](/Users/Leo/Documents/LeaveRequest/src/lib/date.test.ts)
   - floor-to-2-decimal behavior
-  - duration calculations
+  - business-day duration behavior (weekends/holidays excluded)
 - Validation logic in [src/lib/validation.test.ts](/Users/Leo/Documents/LeaveRequest/src/lib/validation.test.ts)
-  - overlap detection
-  - cancelled-request overlap exclusion
+  - overlap detection behavior
+  - cancelled overlap exclusion
   - required field/date rules
-  - valid draft pass-through
+  - leave balance limit enforcement
+  - used-balance aggregation logic
+
+## CSV Format
+
+Import/export CSV columns:
+
+- `id`
+- `userId`
+- `leaveType`
+- `startDate`
+- `endDate`
+- `reason`
+- `status`
+- `createdAt`
+- `updatedAt`
+
+Notes:
+
+- Unknown users/leave types are skipped during import.
+- Imported rows are appended or updated by `id`.
 
 ## Deployment (GitHub Pages)
 
@@ -87,18 +123,18 @@ Workflow file:
 
 - [.github/workflows/deploy.yml](/Users/Leo/Documents/LeaveRequest/.github/workflows/deploy.yml)
 
-What it does on push to `main` (or manual trigger):
+On push to `main` (or manual trigger), the workflow:
 
-1. Installs dependencies with `npm ci`
-2. Runs unit tests (`npm test`)
-3. Builds the app (`npm run build`)
-4. Uploads `dist/` and deploys to GitHub Pages
+1. Runs `npm ci`
+2. Runs `npm test`
+3. Runs `npm run build`
+4. Deploys `dist/` to GitHub Pages
 
-### Required GitHub Settings
+### Required GitHub Setting
 
-- In repository settings, enable GitHub Pages with **GitHub Actions** as the source.
+- Set Pages source to **GitHub Actions** in repository settings.
 
 ## Notes
 
-- Data is stored in local storage key: `leave-requests-v1`.
-- Cancelled requests remain visible in history and are excluded from overlap validation.
+- Local storage key: `leave-requests-v1`.
+- Company holidays are configured in [src/lib/constants.ts](/Users/Leo/Documents/LeaveRequest/src/lib/constants.ts).
