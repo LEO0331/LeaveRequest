@@ -22,6 +22,10 @@ export function hasOverlap(
       return false;
     }
 
+    if (record.status === 'Cancelled') {
+      return false;
+    }
+
     const recordStart = new Date(record.startDate).getTime();
     const recordEnd = new Date(record.endDate).getTime();
 

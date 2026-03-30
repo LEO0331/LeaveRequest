@@ -28,6 +28,7 @@ function createSeedData(count = 10000): LeaveRequest[] {
       endDate: endDate.toISOString(),
       reason,
       durationDays: calculateDurationDays(startDate.toISOString(), endDate.toISOString()),
+      status: 'Active',
       createdAt: new Date().toISOString()
     };
   });
@@ -50,7 +51,10 @@ export function loadLeaveRequests(): LeaveRequest[] {
       return seed;
     }
 
-    return parsed;
+    return parsed.map((item) => ({
+      ...item,
+      status: item.status ?? 'Active'
+    }));
   } catch {
     const seed = createSeedData();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(seed));
@@ -79,6 +83,7 @@ export function toLeaveRequest(draft: LeaveRequestDraft, nowIso: string): LeaveR
     endDate: new Date(draft.endDate).toISOString(),
     reason: draft.reason.trim(),
     durationDays: calculateDurationDays(draft.startDate, draft.endDate),
+    status: 'Active',
     createdAt: nowIso
   };
 }

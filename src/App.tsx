@@ -9,6 +9,7 @@ import {
   Dialog,
   DialogActions,
   DialogContent,
+  DialogContentText,
   DialogTitle,
   Drawer,
   FormControl,
@@ -31,6 +32,8 @@ import {
   Typography
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
+import BlockIcon from '@mui/icons-material/Block';
+import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import { LEAVE_TYPES, USERS } from './lib/constants';
 import { calculateDurationDays, formatDateTime, toInputDateTime } from './lib/date';
@@ -97,6 +100,10 @@ export default function App() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('Leave request saved successfully.');
+  const [isActionPending, setIsActionPending] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<LeaveRequest | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<LeaveRequest | null>(null);
 
   const selectedRequest = useMemo(
     () => requests.find((entry) => entry.id === selectedId) ?? null,
@@ -129,7 +136,8 @@ export default function App() {
         return true;
       }
 
-      const haystack = `${item.id} ${item.userName} ${item.client} ${item.leaveType} ${item.reason}`.toLowerCase();
+      const haystack =
+        `${item.id} ${item.userName} ${item.client} ${item.leaveType} ${item.status} ${item.reason}`.toLowerCase();
       return haystack.includes(q);
     });
 
@@ -216,6 +224,7 @@ export default function App() {
 
           return {
             ...normalized,
+            status: entry.status,
             createdAt: entry.createdAt
           };
         })
@@ -225,8 +234,54 @@ export default function App() {
     saveLeaveRequests(next);
     setFormOpen(false);
     setSelectedId(normalized.id);
+    setSuccessMessage('Leave request saved successfully.');
     setShowSuccess(true);
     setIsSubmitting(false);
+  }
+
+  async function handleCancelRequest(): Promise<void> {
+    if (!cancelTarget) {
+      return;
+    }
+
+    setIsActionPending(true);
+    await new Promise((resolve) => {
+      window.setTimeout(resolve, 350);
+    });
+
+    const next = requests.map((entry) =>
+      entry.id === cancelTarget.id ? { ...entry, status: 'Cancelled' as const } : entry
+    );
+
+    setRequests(next);
+    saveLeaveRequests(next);
+    setSelectedId(cancelTarget.id);
+    setCancelTarget(null);
+    setIsActionPending(false);
+    setSuccessMessage('Leave request cancelled.');
+    setShowSuccess(true);
+  }
+
+  async function handleDeleteRequest(): Promise<void> {
+    if (!deleteTarget) {
+      return;
+    }
+
+    setIsActionPending(true);
+    await new Promise((resolve) => {
+      window.setTimeout(resolve, 350);
+    });
+
+    const next = requests.filter((entry) => entry.id !== deleteTarget.id);
+    setRequests(next);
+    saveLeaveRequests(next);
+    if (selectedId === deleteTarget.id) {
+      setSelectedId(null);
+    }
+    setDeleteTarget(null);
+    setIsActionPending(false);
+    setSuccessMessage('Leave request deleted.');
+    setShowSuccess(true);
   }
 
   function sortLabel(field: SortField, label: string): string {
@@ -360,6 +415,7 @@ export default function App() {
                       {sortLabel('durationDays', 'Days')}
                     </Button>
                   </TableCell>
+                  <TableCell>Status</TableCell>
                   <TableCell>Reason</TableCell>
                 </TableRow>
               </TableHead>
@@ -378,6 +434,13 @@ export default function App() {
                     <TableCell>{formatDateTime(item.startDate)}</TableCell>
                     <TableCell>{formatDateTime(item.endDate)}</TableCell>
                     <TableCell>{item.durationDays.toFixed(2)}</TableCell>
+                    <TableCell>
+                      <Chip
+                        size="small"
+                        color={item.status === 'Cancelled' ? 'default' : 'success'}
+                        label={item.status}
+                      />
+                    </TableCell>
                     <TableCell>{item.reason}</TableCell>
                   </TableRow>
                 ))}
@@ -413,6 +476,14 @@ export default function App() {
               <Typography variant="body2">Client: {selectedRequest.client}</Typography>
               <Typography variant="body2">Type: {selectedRequest.leaveType}</Typography>
               <Typography variant="body2">
+                Status:{' '}
+                <Chip
+                  size="small"
+                  color={selectedRequest.status === 'Cancelled' ? 'default' : 'success'}
+                  label={selectedRequest.status}
+                />
+              </Typography>
+              <Typography variant="body2">
                 Start: {formatDateTime(selectedRequest.startDate)}
               </Typography>
               <Typography variant="body2">End: {formatDateTime(selectedRequest.endDate)}</Typography>
@@ -424,8 +495,26 @@ export default function App() {
                 variant="outlined"
                 startIcon={<EditIcon />}
                 onClick={() => openEditForm(selectedRequest)}
+                disabled={selectedRequest.status === 'Cancelled'}
               >
                 Edit Request
+              </Button>
+              <Button
+                variant="outlined"
+                color="warning"
+                startIcon={<BlockIcon />}
+                disabled={selectedRequest.status === 'Cancelled'}
+                onClick={() => setCancelTarget(selectedRequest)}
+              >
+                Cancel Request
+              </Button>
+              <Button
+                variant="outlined"
+                color="error"
+                startIcon={<DeleteIcon />}
+                onClick={() => setDeleteTarget(selectedRequest)}
+              >
+                Delete Request
               </Button>
             </Stack>
           )}
@@ -541,6 +630,54 @@ export default function App() {
         </DialogActions>
       </Dialog>
 
+      <Dialog open={Boolean(cancelTarget)} onClose={() => setCancelTarget(null)}>
+        <DialogTitle>Cancel Leave Request</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            This will mark the request as cancelled and keep it in the history.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCancelTarget(null)} disabled={isActionPending}>
+            Back
+          </Button>
+          <Button
+            variant="contained"
+            color="warning"
+            disabled={isActionPending}
+            onClick={() => {
+              void handleCancelRequest();
+            }}
+          >
+            {isActionPending ? 'Cancelling...' : 'Confirm Cancel'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={Boolean(deleteTarget)} onClose={() => setDeleteTarget(null)}>
+        <DialogTitle>Delete Leave Request</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            This will permanently delete the selected request from local storage.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteTarget(null)} disabled={isActionPending}>
+            Back
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            disabled={isActionPending}
+            onClick={() => {
+              void handleDeleteRequest();
+            }}
+          >
+            {isActionPending ? 'Deleting...' : 'Confirm Delete'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       <Snackbar
         open={showSuccess}
         autoHideDuration={2000}
@@ -548,7 +685,7 @@ export default function App() {
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
         <Alert severity="success" variant="filled" onClose={() => setShowSuccess(false)}>
-          Leave request saved successfully.
+          {successMessage}
         </Alert>
       </Snackbar>
     </Container>

@@ -1,4 +1,5 @@
 export type LeaveType = 'Personal' | 'Sick' | 'Vacation' | 'Bereavement';
+export type LeaveStatus = 'Active' | 'Cancelled';
 
 export interface User {
   id: string;
@@ -16,6 +17,7 @@ export interface LeaveRequest {
   endDate: string;
   reason: string;
   durationDays: number;
+  status: LeaveStatus;
   createdAt: string;
 }
 
