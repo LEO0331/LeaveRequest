@@ -1,7 +1,7 @@
 import { faker } from '@faker-js/faker';
 import { LEAVE_TYPES, STORAGE_KEY, USERS } from './constants';
 import { calculateDurationDays } from './date';
-import { LeaveRequest, LeaveRequestDraft } from '../types';
+import { LeaveAuditEntry, LeaveRequest, LeaveRequestDraft, LeaveStatus } from '../types';
 
 function createSeedData(count = 10000): LeaveRequest[] {
   faker.seed(20260330);
@@ -18,6 +18,25 @@ function createSeedData(count = 10000): LeaveRequest[] {
     const endDate = new Date(startDate.getTime() + durationHours * 60 * 60 * 1000);
     const reason = faker.lorem.sentence({ min: 3, max: 8 }).slice(0, 50).trim();
 
+    const status: LeaveStatus = faker.helpers.arrayElement(['Submitted', 'Approved', 'Rejected']);
+    const createdAt = new Date().toISOString();
+
+    const history: LeaveAuditEntry[] = [
+      {
+        action: 'Created',
+        at: createdAt,
+        actorRole: 'Employee'
+      }
+    ];
+
+    if (status === 'Approved') {
+      history.push({ action: 'Approved', at: createdAt, actorRole: 'Manager' });
+    }
+
+    if (status === 'Rejected') {
+      history.push({ action: 'Rejected', at: createdAt, actorRole: 'Manager' });
+    }
+
     return {
       id: faker.string.uuid(),
       userId: user.id,
@@ -28,8 +47,10 @@ function createSeedData(count = 10000): LeaveRequest[] {
       endDate: endDate.toISOString(),
       reason,
       durationDays: calculateDurationDays(startDate.toISOString(), endDate.toISOString()),
-      status: 'Active',
-      createdAt: new Date().toISOString()
+      status,
+      createdAt,
+      updatedAt: createdAt,
+      history
     };
   });
 }
@@ -51,10 +72,24 @@ export function loadLeaveRequests(): LeaveRequest[] {
       return seed;
     }
 
-    return parsed.map((item) => ({
-      ...item,
-      status: item.status ?? 'Active'
-    }));
+    return parsed.map((item) => {
+      const createdAt = item.createdAt ?? new Date().toISOString();
+      return {
+        ...item,
+        status: item.status ?? 'Submitted',
+        updatedAt: item.updatedAt ?? createdAt,
+        history:
+          item.history && item.history.length > 0
+            ? item.history
+            : [
+                {
+                  action: 'Imported',
+                  at: createdAt,
+                  actorRole: 'Manager'
+                }
+              ]
+      };
+    });
   } catch {
     const seed = createSeedData();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(seed));
@@ -66,7 +101,11 @@ export function saveLeaveRequests(requests: LeaveRequest[]): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(requests));
 }
 
-export function toLeaveRequest(draft: LeaveRequestDraft, nowIso: string): LeaveRequest {
+export function toLeaveRequest(
+  draft: LeaveRequestDraft,
+  nowIso: string,
+  actorRole: 'Employee' | 'Manager'
+): LeaveRequest {
   const user = USERS.find((entry) => entry.id === draft.userId);
 
   if (!user) {
@@ -83,7 +122,15 @@ export function toLeaveRequest(draft: LeaveRequestDraft, nowIso: string): LeaveR
     endDate: new Date(draft.endDate).toISOString(),
     reason: draft.reason.trim(),
     durationDays: calculateDurationDays(draft.startDate, draft.endDate),
-    status: 'Active',
-    createdAt: nowIso
+    status: 'Submitted',
+    createdAt: nowIso,
+    updatedAt: nowIso,
+    history: [
+      {
+        action: 'Created',
+        at: nowIso,
+        actorRole
+      }
+    ]
   };
 }

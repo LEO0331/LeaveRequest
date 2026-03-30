@@ -1,5 +1,6 @@
 export type LeaveType = 'Personal' | 'Sick' | 'Vacation' | 'Bereavement';
-export type LeaveStatus = 'Active' | 'Cancelled';
+export type LeaveStatus = 'Submitted' | 'Approved' | 'Rejected' | 'Cancelled';
+export type ActorRole = 'Employee' | 'Manager';
 
 export interface User {
   id: string;
@@ -19,6 +20,15 @@ export interface LeaveRequest {
   durationDays: number;
   status: LeaveStatus;
   createdAt: string;
+  updatedAt: string;
+  history: LeaveAuditEntry[];
+}
+
+export interface LeaveAuditEntry {
+  action: 'Created' | 'Edited' | 'Approved' | 'Rejected' | 'Cancelled' | 'Deleted' | 'Imported';
+  at: string;
+  actorRole: ActorRole;
+  note?: string;
 }
 
 export interface LeaveRequestDraft {
@@ -38,4 +48,5 @@ export interface ValidationErrors {
   duration?: string;
   leaveType?: string;
   userId?: string;
+  balance?: string;
 }

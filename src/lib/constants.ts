@@ -16,3 +16,12 @@ export const USERS: User[] = [
   { id: 'u-9', name: 'Irene Kuo', client: 'BlueSky Inc' },
   { id: 'u-10', name: 'Jack Wu', client: 'BlueSky Inc' }
 ];
+
+export const LEAVE_QUOTAS: Record<LeaveType, number> = {
+  Personal: 7,
+  Sick: 10,
+  Vacation: 15,
+  Bereavement: 5
+};
+
+export const COMPANY_HOLIDAYS = ['2026-01-01', '2026-02-16', '2026-04-03', '2026-12-25'];
