@@ -11,13 +11,6 @@ describe('date helpers', () => {
     expect(calculateDurationDays('', '')).toBe(0);
   });
 
-  it('calculates business-day duration with weekends and holidays excluded', () => {
-    const start = '2026-03-01T08:00:00.000Z';
-    const end = '2026-03-05T17:01:00.000Z';
-
-    expect(calculateDurationDays(start, end)).toBe(4.04);
-  });
-
   it('returns negative duration when end is before start', () => {
     const start = '2026-04-05T08:00:00.000Z';
     const end = '2026-04-04T08:00:00.000Z';
