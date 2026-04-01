@@ -40,107 +40,27 @@ import EditIcon from '@mui/icons-material/Edit';
 import FileUploadIcon from '@mui/icons-material/FileUpload';
 import HighlightOffIcon from '@mui/icons-material/HighlightOff';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import {
+  ActionType,
+  actionDialogCopy,
+  appendHistory,
+  buildPdfSummary,
+  downloadTextFile,
+  draftFromRequest,
+  emptyDraft,
+  SortDirection,
+  SortField,
+  sortRequests,
+  statusColor,
+  timestampSuffix
+} from './lib/app-layer';
 import { LEAVE_QUOTAS, LEAVE_TYPES, USERS } from './lib/constants';
 import { importErrorsToCsv, parseCsv, requestsToCsv } from './lib/csv';
-import { calculateDurationDays, formatDateTime, toInputDateTime } from './lib/date';
+import { calculateDurationDays, formatDateTime } from './lib/date';
 import { exportRequestsToPdf } from './lib/pdf';
 import { loadLeaveRequests, saveLeaveRequests, toLeaveRequest } from './lib/storage';
 import { getUsedLeaveDays, validateDraft } from './lib/validation';
 import { ActorRole, LeaveRequest, LeaveRequestDraft, LeaveStatus, ValidationErrors } from './types';
-
-type SortField =
-  | 'userName'
-  | 'client'
-  | 'leaveType'
-  | 'startDate'
-  | 'endDate'
-  | 'durationDays'
-  | 'status';
-type SortDirection = 'asc' | 'desc';
-type ActionType = 'cancel' | 'delete' | 'approve' | 'reject';
-
-function sortRequests(items: LeaveRequest[], field: SortField, direction: SortDirection): LeaveRequest[] {
-  const sorted = [...items].sort((a, b) => {
-    const first = a[field];
-    const second = b[field];
-
-    if (typeof first === 'number' && typeof second === 'number') {
-      return first - second;
-    }
-
-    return String(first).localeCompare(String(second));
-  });
-
-  return direction === 'asc' ? sorted : sorted.reverse();
-}
-
-function emptyDraft(): LeaveRequestDraft {
-  return {
-    userId: '',
-    leaveType: '',
-    startDate: '',
-    endDate: '',
-    reason: ''
-  };
-}
-
-function draftFromRequest(item: LeaveRequest): LeaveRequestDraft {
-  return {
-    id: item.id,
-    userId: item.userId,
-    leaveType: item.leaveType,
-    startDate: toInputDateTime(item.startDate),
-    endDate: toInputDateTime(item.endDate),
-    reason: item.reason
-  };
-}
-
-function statusColor(status: LeaveStatus): 'default' | 'success' | 'warning' | 'error' {
-  if (status === 'Approved') {
-    return 'success';
-  }
-
-  if (status === 'Submitted') {
-    return 'warning';
-  }
-
-  if (status === 'Rejected') {
-    return 'error';
-  }
-
-  return 'default';
-}
-
-function appendHistory(
-  record: LeaveRequest,
-  action: 'Edited' | 'Approved' | 'Rejected' | 'Cancelled' | 'Deleted' | 'Imported',
-  actorRole: ActorRole,
-  note?: string
-): LeaveRequest {
-  return {
-    ...record,
-    updatedAt: new Date().toISOString(),
-    history: [
-      ...record.history,
-      {
-        action,
-        at: new Date().toISOString(),
-        actorRole,
-        note
-      }
-    ]
-  };
-}
-
-function downloadCsv(content: string, filename: string): void {
-  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = filename;
-  anchor.click();
-  URL.revokeObjectURL(url);
-}
 
 export default function App() {
   const [requests, setRequests] = useState<LeaveRequest[]>(() => loadLeaveRequests());
@@ -250,33 +170,29 @@ export default function App() {
     };
   }, [formDraft.userId, formDraft.leaveType, requests, isEditMode, formDraft.id]);
 
-  const activePdfSummary = useMemo(() => {
-    const userName =
-      userFilter === 'all'
-        ? 'All Users'
-        : USERS.find((user) => user.id === userFilter)?.name ?? userFilter;
-    const statusName = statusFilter === 'all' ? 'All Statuses' : statusFilter;
-    const sortName = `${sortField} (${sortDirection})`;
-
-    return {
-      role: actingRole,
-      search: globalSearch.trim(),
-      user: userName,
-      status: statusName,
-      startFrom: startFromFilter,
-      endTo: endToFilter,
-      sort: sortName
-    };
-  }, [
-    userFilter,
-    statusFilter,
-    sortField,
-    sortDirection,
-    actingRole,
-    globalSearch,
-    startFromFilter,
-    endToFilter
-  ]);
+  const activePdfSummary = useMemo(
+    () =>
+      buildPdfSummary({
+        actingRole,
+        globalSearch,
+        userFilter,
+        statusFilter,
+        startFromFilter,
+        endToFilter,
+        sortField,
+        sortDirection
+      }),
+    [
+      actingRole,
+      globalSearch,
+      userFilter,
+      statusFilter,
+      startFromFilter,
+      endToFilter,
+      sortField,
+      sortDirection
+    ]
+  );
 
   function onSort(nextField: SortField): void {
     if (sortField === nextField) {
@@ -439,8 +355,8 @@ export default function App() {
 
   function handleExportCsv(): void {
     const csv = requestsToCsv(filteredRequests);
-    const stamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
-    downloadCsv(csv, `leave-requests-${stamp}.csv`);
+    const stamp = timestampSuffix();
+    downloadTextFile(csv, `leave-requests-${stamp}.csv`, 'text/csv;charset=utf-8;');
   }
 
   async function handleExportPdf(): Promise<void> {
@@ -467,8 +383,8 @@ export default function App() {
 
       if (importErrors.length > 0) {
         const report = importErrorsToCsv(importErrors);
-        const stamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
-        downloadCsv(report, `leave-import-errors-${stamp}.csv`);
+        const stamp = timestampSuffix();
+        downloadTextFile(report, `leave-import-errors-${stamp}.csv`, 'text/csv;charset=utf-8;');
       }
 
       if (parsedRows.length === 0) {
@@ -527,32 +443,7 @@ export default function App() {
     selectedRequest &&
     (selectedRequest.status === 'Submitted' || selectedRequest.status === 'Approved');
 
-  const actionDialogTitle =
-    actionType === 'approve'
-      ? 'Approve Leave Request'
-      : actionType === 'reject'
-        ? 'Reject Leave Request'
-        : actionType === 'cancel'
-          ? 'Cancel Leave Request'
-          : 'Delete Leave Request';
-
-  const actionDialogBody =
-    actionType === 'approve'
-      ? 'This will mark the request as approved.'
-      : actionType === 'reject'
-        ? 'This will mark the request as rejected.'
-        : actionType === 'cancel'
-          ? 'This will mark the request as cancelled and keep it in history.'
-          : 'This will permanently remove the request from local storage.';
-
-  const actionDialogConfirm =
-    actionType === 'approve'
-      ? 'Confirm Approve'
-      : actionType === 'reject'
-        ? 'Confirm Reject'
-        : actionType === 'cancel'
-          ? 'Confirm Cancel'
-          : 'Confirm Delete';
+  const dialogCopy = useMemo(() => actionDialogCopy(actionType), [actionType]);
 
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
@@ -973,9 +864,9 @@ export default function App() {
       </Dialog>
 
       <Dialog open={Boolean(actionType && actionTarget)} onClose={() => setActionType(null)}>
-        <DialogTitle>{actionDialogTitle}</DialogTitle>
+        <DialogTitle>{dialogCopy.title}</DialogTitle>
         <DialogContent>
-          <DialogContentText>{actionDialogBody}</DialogContentText>
+          <DialogContentText>{dialogCopy.body}</DialogContentText>
         </DialogContent>
         <DialogActions>
           <Button
@@ -995,7 +886,7 @@ export default function App() {
               void handleConfirmAction();
             }}
           >
-            {isActionPending ? 'Processing...' : actionDialogConfirm}
+            {isActionPending ? 'Processing...' : dialogCopy.confirm}
           </Button>
         </DialogActions>
       </Dialog>
