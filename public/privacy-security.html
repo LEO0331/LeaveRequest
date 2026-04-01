@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Privacy and security policy for Leave Management System." />
+    <title>Privacy & Security | Leave Management System</title>
+    <style>
+      :root { color-scheme: light; }
+      body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f6f8fa; color: #0d1117; }
+      main { max-width: 860px; margin: 0 auto; padding: 32px 20px 64px; }
+      h1, h2 { line-height: 1.2; }
+      h1 { margin-bottom: 8px; }
+      section { background: #fff; border: 1px solid #d0d7de; border-radius: 12px; padding: 16px 18px; margin-top: 14px; }
+      p, li { line-height: 1.6; }
+      a { color: #0969da; }
+      code { background: #f0f3f6; border-radius: 6px; padding: 1px 6px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Privacy & Security Policy</h1>
+      <p>Effective date: April 1, 2026</p>
+
+      <section>
+        <h2>Data Storage</h2>
+        <p>
+          This application stores leave-request records in your browser local storage using
+          <code>leave-requests-v1</code>. Data does not automatically leave your browser unless you export files.
+        </p>
+      </section>
+
+      <section>
+        <h2>Data Export & Import</h2>
+        <ul>
+          <li>CSV and PDF exports are generated locally in your browser.</li>
+          <li>CSV imports are validated for format and size, and invalid rows are reported in an error file.</li>
+          <li>Exported files may contain personal information depending on your records.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>Security Controls</h2>
+        <ul>
+          <li>Input validation for date ranges, required fields, overlap checks, and leave balance checks.</li>
+          <li>CSV export sanitization to reduce spreadsheet formula injection risks.</li>
+          <li>Role-based workflow actions for employee and manager flows.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>Retention & Deletion</h2>
+        <p>
+          You can remove records by using delete actions in the UI or by clearing browser storage for this site.
+        </p>
+      </section>
+
+      <section>
+        <h2>Contact</h2>
+        <p>
+          For questions about privacy or security handling, contact your system administrator or project owner.
+        </p>
+      </section>
+
+      <p><a href="./">Back to application</a></p>
+    </main>
+  </body>
+</html>

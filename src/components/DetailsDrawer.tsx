@@ -1,0 +1,107 @@
+import { Box, Button, Chip, Drawer, Stack, Typography } from '@mui/material';
+import BlockIcon from '@mui/icons-material/Block';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import DeleteIcon from '@mui/icons-material/Delete';
+import EditIcon from '@mui/icons-material/Edit';
+import HighlightOffIcon from '@mui/icons-material/HighlightOff';
+import { statusColor } from '../lib/app-layer';
+import { formatDateTime } from '../lib/date';
+import { ActionType } from '../lib/app-layer';
+import { LeaveRequest } from '../types';
+
+interface DetailsDrawerProps {
+  request: LeaveRequest | null;
+  canEdit: boolean;
+  canApproveReject: boolean;
+  canCancel: boolean;
+  canDelete: boolean;
+  onClose: () => void;
+  onEdit: (request: LeaveRequest) => void;
+  onAction: (action: ActionType, request: LeaveRequest) => void;
+}
+
+export default function DetailsDrawer({
+  request,
+  canEdit,
+  canApproveReject,
+  canCancel,
+  canDelete,
+  onClose,
+  onEdit,
+  onAction
+}: DetailsDrawerProps) {
+  return (
+    <Drawer anchor="right" open={Boolean(request)} onClose={onClose}>
+      <Box sx={{ width: { xs: 320, sm: 450 }, p: 3 }}>
+        {request && (
+          <Stack spacing={2}>
+            <Typography variant="h6">Leave Request Details</Typography>
+            <Typography variant="body2">ID: {request.id}</Typography>
+            <Typography variant="body2">User: {request.userName}</Typography>
+            <Typography variant="body2">Client: {request.client}</Typography>
+            <Typography variant="body2">Type: {request.leaveType}</Typography>
+            <Typography variant="body2">
+              Status: <Chip size="small" color={statusColor(request.status)} label={request.status} />
+            </Typography>
+            <Typography variant="body2">Start: {formatDateTime(request.startDate)}</Typography>
+            <Typography variant="body2">End: {formatDateTime(request.endDate)}</Typography>
+            <Typography variant="body2">Duration: {request.durationDays.toFixed(2)} business days</Typography>
+            <Typography variant="body2">Reason: {request.reason}</Typography>
+
+            <Typography variant="subtitle2" sx={{ mt: 1 }}>
+              Audit Trail
+            </Typography>
+            <Stack spacing={0.75}>
+              {request.history.slice().reverse().slice(0, 8).map((entry, index) => (
+                <Typography key={`${entry.at}-${index}`} variant="caption" color="text.secondary">
+                  {formatDateTime(entry.at)} | {entry.actorRole} | {entry.action}
+                  {entry.note ? ` | ${entry.note}` : ''}
+                </Typography>
+              ))}
+            </Stack>
+
+            <Button variant="outlined" startIcon={<EditIcon />} onClick={() => onEdit(request)} disabled={!canEdit}>
+              Edit Request
+            </Button>
+            <Button
+              variant="outlined"
+              color="success"
+              startIcon={<CheckCircleIcon />}
+              disabled={!canApproveReject}
+              onClick={() => onAction('approve', request)}
+            >
+              Approve Request
+            </Button>
+            <Button
+              variant="outlined"
+              color="error"
+              startIcon={<HighlightOffIcon />}
+              disabled={!canApproveReject}
+              onClick={() => onAction('reject', request)}
+            >
+              Reject Request
+            </Button>
+            <Button
+              variant="outlined"
+              color="warning"
+              startIcon={<BlockIcon />}
+              disabled={!canCancel}
+              onClick={() => onAction('cancel', request)}
+            >
+              Cancel Request
+            </Button>
+            <Button
+              variant="outlined"
+              color="error"
+              startIcon={<DeleteIcon />}
+              disabled={!canDelete}
+              onClick={() => onAction('delete', request)}
+            >
+              Delete Request
+            </Button>
+          </Stack>
+        )}
+      </Box>
+    </Drawer>
+  );
+}

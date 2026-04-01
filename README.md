@@ -40,6 +40,11 @@ Interactive Leave Management System built with React, TypeScript, and MUI to man
   - Export filtered rows to a paginated PDF report
   - Includes generated timestamp, active filters, sort mode, role, and table rows
   - PDF libraries are lazy-loaded on demand to reduce initial bundle size
+- Build output compression:
+  - Gzip (`.gz`) and Brotli (`.br`) assets generated via `vite-plugin-compression`
+- Cache strategy:
+  - Long-cache rules for static assets provided in `public/_headers`
+  - HTML pages are set to `must-revalidate`
 
 ## Validation Rules
 
@@ -144,9 +149,18 @@ On push to `main` (or manual trigger), the workflow:
 
 - Set Pages source to **GitHub Actions** in repository settings.
 
+## Maintainability Notes
+
+- Main dashboard UI is split into focused components:
+  - [Toolbar.tsx](/Users/Leo/Documents/LeaveRequest/src/components/Toolbar.tsx)
+  - [Filters.tsx](/Users/Leo/Documents/LeaveRequest/src/components/Filters.tsx)
+  - [RequestTable.tsx](/Users/Leo/Documents/LeaveRequest/src/components/RequestTable.tsx)
+  - [DetailsDrawer.tsx](/Users/Leo/Documents/LeaveRequest/src/components/DetailsDrawer.tsx)
+
 ## Notes
 
 - Local storage key: `leave-requests-v1`.
 - Company holidays are configured in [src/lib/constants.ts](/Users/Leo/Documents/LeaveRequest/src/lib/constants.ts).
 - SEO metadata and social tags are set in [index.html](/Users/Leo/Documents/LeaveRequest/index.html).
 - Search crawler rules are set in [public/robots.txt](/Users/Leo/Documents/LeaveRequest/public/robots.txt).
+- Privacy/security policy page: [public/privacy-security.html](/Users/Leo/Documents/LeaveRequest/public/privacy-security.html).
