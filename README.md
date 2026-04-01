@@ -32,7 +32,10 @@ Interactive Leave Management System built with React, TypeScript, and MUI to man
 - CSV import/export for bulk operations:
   - Export filtered rows to CSV
   - Import CSV (upsert by `id`) from Manager role
+  - Download CSV template for faster onboarding
   - Row-level import validation error report auto-download (`leave-import-errors-*.csv`)
+  - Import guardrails: CSV-only extension and max 2MB file size
+  - CSV formula-injection hardening for exported values
 - PDF export for reporting:
   - Export filtered rows to a paginated PDF report
   - Includes generated timestamp, active filters, sort mode, role, and table rows
@@ -145,3 +148,5 @@ On push to `main` (or manual trigger), the workflow:
 
 - Local storage key: `leave-requests-v1`.
 - Company holidays are configured in [src/lib/constants.ts](/Users/Leo/Documents/LeaveRequest/src/lib/constants.ts).
+- SEO metadata and social tags are set in [index.html](/Users/Leo/Documents/LeaveRequest/index.html).
+- Search crawler rules are set in [public/robots.txt](/Users/Leo/Documents/LeaveRequest/public/robots.txt).

@@ -40,6 +40,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import FileUploadIcon from '@mui/icons-material/FileUpload';
 import HighlightOffIcon from '@mui/icons-material/HighlightOff';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import DescriptionIcon from '@mui/icons-material/Description';
 import {
   ActionType,
   actionDialogCopy,
@@ -55,7 +56,7 @@ import {
   timestampSuffix
 } from './lib/app-layer';
 import { LEAVE_QUOTAS, LEAVE_TYPES, USERS } from './lib/constants';
-import { importErrorsToCsv, parseCsv, requestsToCsv } from './lib/csv';
+import { csvTemplate, importErrorsToCsv, parseCsv, requestsToCsv } from './lib/csv';
 import { calculateDurationDays, formatDateTime } from './lib/date';
 import { exportRequestsToPdf } from './lib/pdf';
 import { loadLeaveRequests, saveLeaveRequests, toLeaveRequest } from './lib/storage';
@@ -377,6 +378,22 @@ export default function App() {
       return;
     }
 
+    const isCsvName = file.name.toLowerCase().endsWith('.csv');
+    if (!isCsvName) {
+      setErrorMessage('Only .csv files are allowed for import.');
+      setShowError(true);
+      event.target.value = '';
+      return;
+    }
+
+    const maxImportBytes = 2 * 1024 * 1024;
+    if (file.size > maxImportBytes) {
+      setErrorMessage('CSV import file is too large. Maximum supported size is 2MB.');
+      setShowError(true);
+      event.target.value = '';
+      return;
+    }
+
     try {
       const content = await file.text();
       const { rows: parsedRows, errors: importErrors } = parseCsv(content);
@@ -431,6 +448,11 @@ export default function App() {
     } finally {
       event.target.value = '';
     }
+  }
+
+  function handleDownloadTemplate(): void {
+    const template = csvTemplate();
+    downloadTextFile(template, 'leave-import-template.csv', 'text/csv;charset=utf-8;');
   }
 
   const canApproveReject = actingRole === 'Manager' && selectedRequest?.status === 'Submitted';
@@ -490,6 +512,13 @@ export default function App() {
               disabled={actingRole !== 'Manager'}
             >
               Import CSV
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={<DescriptionIcon />}
+              onClick={handleDownloadTemplate}
+            >
+              CSV Template
             </Button>
             <Button variant="contained" startIcon={<AddIcon />} onClick={openCreateForm}>
               Add New Leave Request

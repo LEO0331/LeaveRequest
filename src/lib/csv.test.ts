@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { importErrorsToCsv, parseCsv } from './csv';
+import { csvTemplate, importErrorsToCsv, parseCsv, requestsToCsv } from './csv';
+import { LeaveRequest } from '../types';
 
 describe('csv helpers', () => {
   it('parses valid rows and reports invalid rows', () => {
@@ -35,5 +36,35 @@ describe('csv helpers', () => {
 
     expect(csv).toContain('rowNumber,reason,rowData');
     expect(csv).toContain('2,Unknown userId: bad,"raw,line"');
+  });
+
+  it('sanitizes formula-like values in csv export', () => {
+    const rows: LeaveRequest[] = [
+      {
+        id: 'r-1',
+        userId: 'u-1',
+        userName: 'Alice Chen',
+        client: 'Acme Corp',
+        leaveType: 'Vacation',
+        startDate: '2026-04-10T08:00:00.000Z',
+        endDate: '2026-04-11T08:00:00.000Z',
+        reason: '=cmd',
+        durationDays: 1,
+        status: 'Submitted',
+        createdAt: '2026-03-01T00:00:00.000Z',
+        updatedAt: '2026-03-01T00:00:00.000Z',
+        history: []
+      }
+    ];
+
+    const csv = requestsToCsv(rows);
+    expect(csv).toContain("'=cmd");
+  });
+
+  it('generates a usable template with headers and one sample row', () => {
+    const template = csvTemplate();
+    const lines = template.split('\n');
+    expect(lines[0]).toContain('id,userId,leaveType,startDate,endDate,reason,status,createdAt,updatedAt');
+    expect(lines).toHaveLength(2);
   });
 });

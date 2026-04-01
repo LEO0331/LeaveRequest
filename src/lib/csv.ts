@@ -30,6 +30,15 @@ function escapeCsv(value: string): string {
   return /[",\n]/.test(safe) ? `"${safe}"` : safe;
 }
 
+// Prevent CSV/Excel formula injection by neutralizing dangerous leading characters.
+function sanitizeForSpreadsheet(value: string): string {
+  if (/^[=+\-@]/.test(value)) {
+    return `'${value}`;
+  }
+
+  return value;
+}
+
 export function requestsToCsv(rows: LeaveRequest[]): string {
   const lines = [CSV_HEADERS.join(',')];
 
@@ -44,7 +53,7 @@ export function requestsToCsv(rows: LeaveRequest[]): string {
       row.status,
       row.createdAt,
       row.updatedAt
-    ].map((value) => escapeCsv(String(value)));
+    ].map((value) => escapeCsv(sanitizeForSpreadsheet(String(value))));
 
     lines.push(record.join(','));
   });
@@ -57,11 +66,35 @@ export function importErrorsToCsv(errors: CsvImportError[]): string {
 
   errors.forEach((error) => {
     lines.push(
-      [String(error.rowNumber), escapeCsv(error.reason), escapeCsv(error.row)].join(',')
+      [
+        String(error.rowNumber),
+        escapeCsv(sanitizeForSpreadsheet(error.reason)),
+        escapeCsv(sanitizeForSpreadsheet(error.row))
+      ].join(',')
     );
   });
 
   return lines.join('\n');
+}
+
+export function csvTemplate(): string {
+  const sampleUser = USERS[0];
+  const now = new Date('2026-04-10T09:00:00.000Z').toISOString();
+  const end = new Date('2026-04-11T09:00:00.000Z').toISOString();
+
+  const sample = [
+    'sample-1',
+    sampleUser.id,
+    'Vacation',
+    now,
+    end,
+    'Family trip',
+    'Submitted',
+    new Date('2026-03-01T00:00:00.000Z').toISOString(),
+    new Date('2026-03-01T00:00:00.000Z').toISOString()
+  ].map((value) => escapeCsv(String(value)));
+
+  return `${CSV_HEADERS.join(',')}\n${sample.join(',')}`;
 }
 
 function splitCsvLine(line: string): string[] {
