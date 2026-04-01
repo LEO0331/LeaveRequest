@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   actionDialogCopy,
+  appendHistory,
   buildPdfSummary,
+  draftFromRequest,
+  emptyDraft,
   sortRequests,
   statusColor,
   timestampSuffix
@@ -75,5 +78,33 @@ describe('app layer helpers', () => {
   it('formats timestamp suffix for filenames', () => {
     const suffix = timestampSuffix(new Date('2026-04-01T10:20:30.000Z'));
     expect(suffix).toBe('2026-04-01T10-20-30');
+  });
+
+  it('creates an empty draft shape', () => {
+    expect(emptyDraft()).toEqual({
+      userId: '',
+      leaveType: '',
+      startDate: '',
+      endDate: '',
+      reason: ''
+    });
+  });
+
+  it('creates editable draft from request', () => {
+    const draft = draftFromRequest(baseRequest);
+    expect(draft.id).toBe('r-1');
+    expect(draft.userId).toBe('u-1');
+    expect(draft.leaveType).toBe('Vacation');
+    expect(draft.startDate).toContain('T');
+    expect(draft.endDate).toContain('T');
+  });
+
+  it('appends audit history entry with note', () => {
+    const updated = appendHistory(baseRequest, 'Approved', 'Manager', 'Looks good');
+    expect(updated.history).toHaveLength(1);
+    expect(updated.history[0].action).toBe('Approved');
+    expect(updated.history[0].actorRole).toBe('Manager');
+    expect(updated.history[0].note).toBe('Looks good');
+    expect(updated.updatedAt).toBeTruthy();
   });
 });

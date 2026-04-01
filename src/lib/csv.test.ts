@@ -67,4 +67,24 @@ describe('csv helpers', () => {
     expect(lines[0]).toContain('id,userId,leaveType,startDate,endDate,reason,status,createdAt,updatedAt');
     expect(lines).toHaveLength(2);
   });
+
+  it('falls back to Submitted when import status is unknown', () => {
+    const content = [
+      'id,userId,leaveType,startDate,endDate,reason,status,createdAt,updatedAt',
+      'r-10,u-1,Vacation,2026-04-10T08:00:00.000Z,2026-04-11T08:00:00.000Z,Trip,UnknownStatus,2026-03-01T00:00:00.000Z,2026-03-01T00:00:00.000Z'
+    ].join('\n');
+
+    const result = parseCsv(content);
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0].status).toBe('Submitted');
+  });
+
+  it('sanitizes dangerous values in error csv export', () => {
+    const csv = importErrorsToCsv([
+      { rowNumber: 4, reason: '=BAD()', row: '+row,data' }
+    ]);
+
+    expect(csv).toContain("'=BAD()");
+    expect(csv).toContain("'+row,data");
+  });
 });
