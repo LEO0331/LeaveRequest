@@ -14,6 +14,17 @@ const CSV_HEADERS = [
   'updatedAt'
 ] as const;
 
+export interface CsvImportError {
+  rowNumber: number;
+  reason: string;
+  row: string;
+}
+
+export interface CsvParseResult {
+  rows: LeaveRequest[];
+  errors: CsvImportError[];
+}
+
 function escapeCsv(value: string): string {
   const safe = value.replace(/"/g, '""');
   return /[",\n]/.test(safe) ? `"${safe}"` : safe;
@@ -36,6 +47,18 @@ export function requestsToCsv(rows: LeaveRequest[]): string {
     ].map((value) => escapeCsv(String(value)));
 
     lines.push(record.join(','));
+  });
+
+  return lines.join('\n');
+}
+
+export function importErrorsToCsv(errors: CsvImportError[]): string {
+  const lines = ['rowNumber,reason,rowData'];
+
+  errors.forEach((error) => {
+    lines.push(
+      [String(error.rowNumber), escapeCsv(error.reason), escapeCsv(error.row)].join(',')
+    );
   });
 
   return lines.join('\n');
@@ -74,70 +97,108 @@ function splitCsvLine(line: string): string[] {
   return result;
 }
 
-export function parseCsv(content: string): LeaveRequest[] {
+export function parseCsv(content: string): CsvParseResult {
   const lines = content
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
 
   if (lines.length <= 1) {
-    return [];
+    return { rows: [], errors: [] };
   }
 
   const headers = splitCsvLine(lines[0]);
   const indexOf = (name: string): number => headers.indexOf(name);
+  const requiredHeaders = ['userId', 'leaveType', 'startDate', 'endDate', 'reason'];
 
-  return lines.slice(1).flatMap((line) => {
+  const missingHeaders = requiredHeaders.filter((header) => indexOf(header) < 0);
+  if (missingHeaders.length > 0) {
+    return {
+      rows: [],
+      errors: [
+        {
+          rowNumber: 1,
+          reason: `Missing required headers: ${missingHeaders.join(', ')}`,
+          row: lines[0]
+        }
+      ]
+    };
+  }
+
+  const rows: LeaveRequest[] = [];
+  const errors: CsvImportError[] = [];
+
+  lines.slice(1).forEach((line, rowIndex) => {
     const cols = splitCsvLine(line);
-    const userId = cols[indexOf('userId')];
-    const leaveType = cols[indexOf('leaveType')] as LeaveRequest['leaveType'];
-    const startDate = cols[indexOf('startDate')];
-    const endDate = cols[indexOf('endDate')];
-    const reason = (cols[indexOf('reason')] ?? '').slice(0, 50);
-    const createdAt = cols[indexOf('createdAt')] ?? new Date().toISOString();
-    const updatedAt = cols[indexOf('updatedAt')] ?? createdAt;
-    const statusRaw = cols[indexOf('status')] as LeaveRequest['status'];
-    const id = cols[indexOf('id')] || crypto.randomUUID();
+    const rowNumber = rowIndex + 2;
 
-    if (!USERS.some((user) => user.id === userId)) {
-      return [];
+    const userId = cols[indexOf('userId')]?.trim();
+    const leaveType = cols[indexOf('leaveType')]?.trim() as LeaveRequest['leaveType'];
+    const startDateRaw = cols[indexOf('startDate')]?.trim();
+    const endDateRaw = cols[indexOf('endDate')]?.trim();
+    const reason = (cols[indexOf('reason')] ?? '').trim().slice(0, 50);
+    const createdAt = cols[indexOf('createdAt')]?.trim() ?? new Date().toISOString();
+    const updatedAt = cols[indexOf('updatedAt')]?.trim() ?? createdAt;
+    const statusRaw = cols[indexOf('status')]?.trim() as LeaveRequest['status'];
+    const id = cols[indexOf('id')]?.trim() || crypto.randomUUID();
+
+    if (!userId || !USERS.some((user) => user.id === userId)) {
+      errors.push({ rowNumber, reason: `Unknown userId: ${userId ?? '(empty)'}`, row: line });
+      return;
     }
 
-    if (!LEAVE_TYPES.includes(leaveType)) {
-      return [];
+    if (!leaveType || !LEAVE_TYPES.includes(leaveType)) {
+      errors.push({ rowNumber, reason: `Unknown leaveType: ${leaveType ?? '(empty)'}`, row: line });
+      return;
+    }
+
+    if (!startDateRaw || Number.isNaN(new Date(startDateRaw).getTime())) {
+      errors.push({ rowNumber, reason: 'Invalid startDate', row: line });
+      return;
+    }
+
+    if (!endDateRaw || Number.isNaN(new Date(endDateRaw).getTime())) {
+      errors.push({ rowNumber, reason: 'Invalid endDate', row: line });
+      return;
+    }
+
+    if (!reason) {
+      errors.push({ rowNumber, reason: 'Reason is required', row: line });
+      return;
     }
 
     const user = USERS.find((entry) => entry.id === userId);
     if (!user) {
-      return [];
+      errors.push({ rowNumber, reason: `Unknown userId: ${userId}`, row: line });
+      return;
     }
 
     const status: LeaveRequest['status'] = ['Submitted', 'Approved', 'Rejected', 'Cancelled'].includes(statusRaw)
       ? statusRaw
       : 'Submitted';
 
-    return [
-      {
-        id,
-        userId,
-        userName: user.name,
-        client: user.client,
-        leaveType,
-        startDate: new Date(startDate).toISOString(),
-        endDate: new Date(endDate).toISOString(),
-        reason,
-        durationDays: calculateDurationDays(startDate, endDate),
-        status,
-        createdAt,
-        updatedAt,
-        history: [
-          {
-            action: 'Imported',
-            at: new Date().toISOString(),
-            actorRole: 'Manager'
-          }
-        ]
-      }
-    ];
+    rows.push({
+      id,
+      userId,
+      userName: user.name,
+      client: user.client,
+      leaveType,
+      startDate: new Date(startDateRaw).toISOString(),
+      endDate: new Date(endDateRaw).toISOString(),
+      reason,
+      durationDays: calculateDurationDays(startDateRaw, endDateRaw),
+      status,
+      createdAt,
+      updatedAt,
+      history: [
+        {
+          action: 'Imported',
+          at: new Date().toISOString(),
+          actorRole: 'Manager'
+        }
+      ]
+    });
   });
+
+  return { rows, errors };
 }

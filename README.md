@@ -32,6 +32,11 @@ Interactive Leave Management System built with React, TypeScript, and MUI to man
 - CSV import/export for bulk operations:
   - Export filtered rows to CSV
   - Import CSV (upsert by `id`) from Manager role
+  - Row-level import validation error report auto-download (`leave-import-errors-*.csv`)
+- PDF export for reporting:
+  - Export filtered rows to a paginated PDF report
+  - Includes generated timestamp, active filters, sort mode, role, and table rows
+  - PDF libraries are lazy-loaded on demand to reduce initial bundle size
 
 ## Validation Rules
 
@@ -52,6 +57,7 @@ Validation runs on submit/save and blocks if:
 - MUI (Material UI)
 - Faker (`@faker-js/faker`)
 - Vitest (unit tests)
+- jsPDF + jspdf-autotable (PDF reports)
 
 ## Getting Started
 
@@ -116,6 +122,7 @@ Notes:
 
 - Unknown users/leave types are skipped during import.
 - Imported rows are appended or updated by `id`.
+- Import validation issues are exported as a downloadable CSV report.
 
 ## Deployment (GitHub Pages)
 

@@ -39,9 +39,11 @@ import DownloadIcon from '@mui/icons-material/Download';
 import EditIcon from '@mui/icons-material/Edit';
 import FileUploadIcon from '@mui/icons-material/FileUpload';
 import HighlightOffIcon from '@mui/icons-material/HighlightOff';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import { LEAVE_QUOTAS, LEAVE_TYPES, USERS } from './lib/constants';
-import { requestsToCsv, parseCsv } from './lib/csv';
+import { importErrorsToCsv, parseCsv, requestsToCsv } from './lib/csv';
 import { calculateDurationDays, formatDateTime, toInputDateTime } from './lib/date';
+import { exportRequestsToPdf } from './lib/pdf';
 import { loadLeaveRequests, saveLeaveRequests, toLeaveRequest } from './lib/storage';
 import { getUsedLeaveDays, validateDraft } from './lib/validation';
 import { ActorRole, LeaveRequest, LeaveRequestDraft, LeaveStatus, ValidationErrors } from './types';
@@ -166,6 +168,7 @@ export default function App() {
   const [showError, setShowError] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [isActionPending, setIsActionPending] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [actionType, setActionType] = useState<ActionType | null>(null);
   const [actionTarget, setActionTarget] = useState<LeaveRequest | null>(null);
   const importInputRef = useRef<HTMLInputElement | null>(null);
@@ -246,6 +249,34 @@ export default function App() {
       remaining
     };
   }, [formDraft.userId, formDraft.leaveType, requests, isEditMode, formDraft.id]);
+
+  const activePdfSummary = useMemo(() => {
+    const userName =
+      userFilter === 'all'
+        ? 'All Users'
+        : USERS.find((user) => user.id === userFilter)?.name ?? userFilter;
+    const statusName = statusFilter === 'all' ? 'All Statuses' : statusFilter;
+    const sortName = `${sortField} (${sortDirection})`;
+
+    return {
+      role: actingRole,
+      search: globalSearch.trim(),
+      user: userName,
+      status: statusName,
+      startFrom: startFromFilter,
+      endTo: endToFilter,
+      sort: sortName
+    };
+  }, [
+    userFilter,
+    statusFilter,
+    sortField,
+    sortDirection,
+    actingRole,
+    globalSearch,
+    startFromFilter,
+    endToFilter
+  ]);
 
   function onSort(nextField: SortField): void {
     if (sortField === nextField) {
@@ -412,6 +443,18 @@ export default function App() {
     downloadCsv(csv, `leave-requests-${stamp}.csv`);
   }
 
+  async function handleExportPdf(): Promise<void> {
+    try {
+      setIsExportingPdf(true);
+      await exportRequestsToPdf(filteredRequests, activePdfSummary);
+    } catch {
+      setErrorMessage('PDF export failed. Please try again.');
+      setShowError(true);
+    } finally {
+      setIsExportingPdf(false);
+    }
+  }
+
   async function handleImportFile(event: ChangeEvent<HTMLInputElement>): Promise<void> {
     const file = event.target.files?.[0];
     if (!file) {
@@ -420,16 +463,26 @@ export default function App() {
 
     try {
       const content = await file.text();
-      const parsed = parseCsv(content);
+      const { rows: parsedRows, errors: importErrors } = parseCsv(content);
 
-      if (parsed.length === 0) {
-        setErrorMessage('No valid rows found in CSV import file.');
+      if (importErrors.length > 0) {
+        const report = importErrorsToCsv(importErrors);
+        const stamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+        downloadCsv(report, `leave-import-errors-${stamp}.csv`);
+      }
+
+      if (parsedRows.length === 0) {
+        setErrorMessage(
+          importErrors.length > 0
+            ? 'No valid rows imported. Error report downloaded.'
+            : 'No valid rows found in CSV import file.'
+        );
         setShowError(true);
         return;
       }
 
       const map = new Map(requests.map((row) => [row.id, row]));
-      parsed.forEach((row) => {
+      parsedRows.forEach((row) => {
         const existing = map.get(row.id);
         if (existing) {
           map.set(
@@ -453,7 +506,9 @@ export default function App() {
       });
 
       const next = Array.from(map.values());
-      persistAndNotify(next, `Imported ${parsed.length} record(s) from CSV.`);
+      const suffix =
+        importErrors.length > 0 ? ` ${importErrors.length} row error(s) reported in download.` : '';
+      persistAndNotify(next, `Imported ${parsedRows.length} record(s) from CSV.${suffix}`);
     } catch {
       setErrorMessage('CSV import failed. Please verify file format.');
       setShowError(true);
@@ -526,6 +581,16 @@ export default function App() {
             </FormControl>
             <Button variant="outlined" startIcon={<DownloadIcon />} onClick={handleExportCsv}>
               Export CSV
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={<PictureAsPdfIcon />}
+              onClick={() => {
+                void handleExportPdf();
+              }}
+              disabled={isExportingPdf}
+            >
+              {isExportingPdf ? 'Exporting PDF...' : 'Export PDF'}
             </Button>
             <Button
               variant="outlined"
