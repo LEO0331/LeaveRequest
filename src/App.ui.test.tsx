@@ -44,6 +44,15 @@ vi.mock('./lib/storage', () => ({
   toLeaveRequest: vi.fn()
 }));
 
+vi.mock('./lib/date', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./lib/date')>();
+  return {
+    ...actual,
+    // Keep snapshots stable across CI/local timezones.
+    formatDateTime: (iso: string) => new Date(iso).toISOString()
+  };
+});
+
 describe('App UI', () => {
   it('navigates from home to dashboard', async () => {
     const user = userEvent.setup();
