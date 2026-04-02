@@ -20,6 +20,8 @@ import {
   Link,
   Typography
 } from '@mui/material';
+import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
+import HomeRoundedIcon from '@mui/icons-material/HomeRounded';
 import Toolbar from './components/Toolbar';
 import Filters from './components/Filters';
 import RequestTable from './components/RequestTable';
@@ -46,6 +48,7 @@ import { getUsedLeaveDays, validateDraft } from './lib/validation';
 import { ActorRole, LeaveRequest, LeaveRequestDraft, LeaveStatus, ValidationErrors } from './types';
 
 export default function App() {
+  const [viewMode, setViewMode] = useState<'home' | 'dashboard'>('home');
   const [requests, setRequests] = useState<LeaveRequest[]>(() => loadLeaveRequests());
   const [actingRole, setActingRole] = useState<ActorRole>('Employee');
   const [globalSearch, setGlobalSearch] = useState('');
@@ -448,19 +451,97 @@ export default function App() {
     (selectedRequest.status === 'Submitted' || selectedRequest.status === 'Approved');
 
   const dialogCopy = useMemo(() => actionDialogCopy(actionType), [actionType]);
+  const dashboardStats = useMemo(
+    () => ({
+      total: requests.length,
+      submitted: requests.filter((entry) => entry.status === 'Submitted').length,
+      approved: requests.filter((entry) => entry.status === 'Approved').length,
+      activeUsers: new Set(requests.map((entry) => entry.userId)).size
+    }),
+    [requests]
+  );
 
   return (
-    <Container maxWidth="xl" sx={{ py: 4 }}>
-      <Stack spacing={3}>
-        <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={2}>
-          <Box>
-            <Typography variant="h4" fontWeight={700}>
-              Leave Management System
+    <Container maxWidth="xl" className="editorial-shell" sx={{ py: { xs: 2.2, md: 4 }, px: { xs: 1.1, sm: 2.3 } }}>
+      {viewMode === 'home' ? (
+        <Stack spacing={{ xs: 1.6, md: 2.4 }}>
+          <Box className="stagger-reveal">
+            <span className="hero-kicker">Leave Atelier</span>
+            <Typography className="hero-title">
+              Approvals that feel less like admin, more like orchestration.
             </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Approval workflow, leave balance controls, and CSV import/export
+            <Typography sx={{ maxWidth: 760, color: 'text.secondary', fontSize: '1.03rem' }}>
+              A designer-led leave workflow with intelligent validation, crisp reporting, and a dashboard your team will actually enjoy opening.
             </Typography>
           </Box>
+
+          <Stack direction={{ xs: 'column', lg: 'row' }} spacing={{ xs: 1.3, md: 2 }}>
+            <Box className="hero-panel stagger-reveal delay-1" sx={{ p: { xs: 1.55, md: 3 }, flex: 1.45 }}>
+              <Typography className="section-title" variant="h4" sx={{ mb: 1.5 }}>
+                First Version Ready
+              </Typography>
+              <Typography sx={{ color: 'text.secondary', mb: 2 }}>
+                Validate leave rules, track balance, process approvals, and export polished reports from one unified control room.
+              </Typography>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 0.9, md: 1.2 }}>
+                <Button
+                  className="cta-strong"
+                  variant="contained"
+                  size="large"
+                  endIcon={<ArrowForwardIcon />}
+                  onClick={() => setViewMode('dashboard')}
+                >
+                  Enter Dashboard
+                </Button>
+                <Button variant="outlined" size="large" href="privacy-security.html" target="_blank" rel="noopener noreferrer">
+                  Review Privacy & Security
+                </Button>
+              </Stack>
+            </Box>
+            <Stack sx={{ flex: 1 }} spacing={{ xs: 1, md: 1.5 }}>
+              <Box className="frosted-block stagger-reveal delay-2" sx={{ p: { xs: 1.25, md: 2 } }}>
+                <Typography variant="caption" sx={{ textTransform: 'uppercase', letterSpacing: '0.1em', color: 'text.secondary' }}>
+                  Total Requests
+                </Typography>
+                <Typography className="section-title" variant="h3">{dashboardStats.total.toLocaleString()}</Typography>
+              </Box>
+              <Box className="frosted-block stagger-reveal delay-3" sx={{ p: { xs: 1.25, md: 2 } }}>
+                <Typography variant="caption" sx={{ textTransform: 'uppercase', letterSpacing: '0.1em', color: 'text.secondary' }}>
+                  Awaiting Decision
+                </Typography>
+                <Typography className="section-title" variant="h3">{dashboardStats.submitted.toLocaleString()}</Typography>
+              </Box>
+              <Box className="frosted-block stagger-reveal delay-4" sx={{ p: { xs: 1.25, md: 2 } }}>
+                <Typography variant="caption" sx={{ textTransform: 'uppercase', letterSpacing: '0.1em', color: 'text.secondary' }}>
+                  Active Contributors
+                </Typography>
+                <Typography className="section-title" variant="h3">{dashboardStats.activeUsers.toLocaleString()}</Typography>
+              </Box>
+            </Stack>
+          </Stack>
+        </Stack>
+      ) : (
+        <Stack spacing={2.2}>
+          <Stack direction={{ xs: 'column', lg: 'row' }} justifyContent="space-between" spacing={1.5}>
+            <Box className="stagger-reveal">
+              <Typography className="section-title" variant="h3">
+                Leave Operations Studio
+              </Typography>
+              <Typography color="text.secondary">
+                Editorial dashboard for approvals, balance governance, and export-ready reporting.
+              </Typography>
+            </Box>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <Button
+                variant="outlined"
+                startIcon={<HomeRoundedIcon />}
+                onClick={() => setViewMode('home')}
+              >
+                Home
+              </Button>
+            </Stack>
+          </Stack>
+
           <Toolbar
             actingRole={actingRole}
             onChangeRole={setActingRole}
@@ -483,52 +564,52 @@ export default function App() {
               void handleImportFile(event);
             }}
           />
+
+          <Filters
+            globalSearch={globalSearch}
+            onGlobalSearchChange={(value) => {
+              setGlobalSearch(value);
+              setPage(0);
+            }}
+            userFilter={userFilter}
+            onUserFilterChange={onChangeUserFilter}
+            statusFilter={statusFilter}
+            onStatusFilterChange={(value) => {
+              setStatusFilter(value);
+              setPage(0);
+            }}
+            startFromFilter={startFromFilter}
+            onStartFromFilterChange={(value) => {
+              setStartFromFilter(value);
+              setPage(0);
+            }}
+            endToFilter={endToFilter}
+            onEndToFilterChange={(value) => {
+              setEndToFilter(value);
+              setPage(0);
+            }}
+            groupByClient={groupByClient}
+            onGroupByClientChange={setGroupByClient}
+            groupSummary={groupSummary}
+          />
+
+          <RequestTable
+            pagedRequests={pagedRequests}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+            onSort={onSort}
+            sortLabel={sortLabel}
+            totalCount={filteredRequests.length}
+            page={page}
+            rowsPerPage={rowsPerPage}
+            onPageChange={setPage}
+            onRowsPerPageChange={(nextRowsPerPage) => {
+              setRowsPerPage(nextRowsPerPage);
+              setPage(0);
+            }}
+          />
         </Stack>
-
-        <Filters
-          globalSearch={globalSearch}
-          onGlobalSearchChange={(value) => {
-            setGlobalSearch(value);
-            setPage(0);
-          }}
-          userFilter={userFilter}
-          onUserFilterChange={onChangeUserFilter}
-          statusFilter={statusFilter}
-          onStatusFilterChange={(value) => {
-            setStatusFilter(value);
-            setPage(0);
-          }}
-          startFromFilter={startFromFilter}
-          onStartFromFilterChange={(value) => {
-            setStartFromFilter(value);
-            setPage(0);
-          }}
-          endToFilter={endToFilter}
-          onEndToFilterChange={(value) => {
-            setEndToFilter(value);
-            setPage(0);
-          }}
-          groupByClient={groupByClient}
-          onGroupByClientChange={setGroupByClient}
-          groupSummary={groupSummary}
-        />
-
-        <RequestTable
-          pagedRequests={pagedRequests}
-          selectedId={selectedId}
-          onSelect={setSelectedId}
-          onSort={onSort}
-          sortLabel={sortLabel}
-          totalCount={filteredRequests.length}
-          page={page}
-          rowsPerPage={rowsPerPage}
-          onPageChange={setPage}
-          onRowsPerPageChange={(nextRowsPerPage) => {
-            setRowsPerPage(nextRowsPerPage);
-            setPage(0);
-          }}
-        />
-      </Stack>
+      )}
 
       <DetailsDrawer
         request={selectedRequest}

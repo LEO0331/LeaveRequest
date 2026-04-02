@@ -2,22 +2,64 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { CssBaseline, ThemeProvider, createTheme } from '@mui/material';
 import App from './App';
+import './design.css';
 
 const theme = createTheme({
   palette: {
     mode: 'light',
     primary: {
-      main: '#1f6feb'
+      main: '#df5a3d'
     },
     secondary: {
-      main: '#1f883d'
+      main: '#1f4b5a'
     },
     background: {
-      default: '#f6f8fa'
+      default: '#f4efe6',
+      paper: '#fff9ef'
+    },
+    text: {
+      primary: '#111827',
+      secondary: '#334155'
     }
   },
   shape: {
-    borderRadius: 10
+    borderRadius: 14
+  },
+  typography: {
+    fontFamily: `'Plus Jakarta Sans', 'Segoe UI', sans-serif`,
+    h1: {
+      fontFamily: `'Fraunces', Georgia, serif`
+    },
+    h2: {
+      fontFamily: `'Fraunces', Georgia, serif`
+    },
+    h3: {
+      fontFamily: `'Fraunces', Georgia, serif`
+    },
+    h4: {
+      fontFamily: `'Fraunces', Georgia, serif`
+    },
+    h5: {
+      fontFamily: `'Fraunces', Georgia, serif`
+    }
+  },
+  components: {
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          textTransform: 'none',
+          fontWeight: 600,
+          borderRadius: 999
+        }
+      }
+    },
+    MuiPaper: {
+      styleOverrides: {
+        root: {
+          borderRadius: 18
+        }
+      }
+    }
   }
 });
 

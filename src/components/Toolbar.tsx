@@ -1,11 +1,4 @@
-import {
-  Button,
-  FormControl,
-  InputLabel,
-  MenuItem,
-  Select,
-  Stack
-} from '@mui/material';
+import { Button, FormControl, InputLabel, MenuItem, Select, Stack, Typography } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DescriptionIcon from '@mui/icons-material/Description';
 import DownloadIcon from '@mui/icons-material/Download';
@@ -37,8 +30,16 @@ export default function Toolbar({
   onAddRequest
 }: ToolbarProps) {
   return (
-    <Stack direction="row" spacing={1} flexWrap="wrap">
-      <FormControl sx={{ minWidth: 130 }}>
+    <Stack
+      className="frosted-block stagger-reveal delay-2"
+      direction={{ xs: 'column', lg: 'row' }}
+      spacing={{ xs: 0.8, md: 1.2 }}
+      sx={{ p: { xs: 0.85, md: 1.3 }, alignItems: { xs: 'stretch', lg: 'center' } }}
+    >
+      <Typography variant="caption" sx={{ letterSpacing: '0.11em', textTransform: 'uppercase', px: { xs: 0.3, md: 1.2 } }}>
+        Workspace Controls
+      </Typography>
+      <FormControl size="small" sx={{ minWidth: 140 }}>
         <InputLabel id="role-select-label">Role</InputLabel>
         <Select
           labelId="role-select-label"
@@ -62,7 +63,7 @@ export default function Toolbar({
       <Button variant="outlined" startIcon={<DescriptionIcon />} onClick={onDownloadTemplate}>
         CSV Template
       </Button>
-      <Button variant="contained" startIcon={<AddIcon />} onClick={onAddRequest}>
+      <Button className="cta-strong" variant="contained" startIcon={<AddIcon />} onClick={onAddRequest}>
         Add New Leave Request
       </Button>
     </Stack>

@@ -32,10 +32,20 @@ export default function DetailsDrawer({
 }: DetailsDrawerProps) {
   return (
     <Drawer anchor="right" open={Boolean(request)} onClose={onClose}>
-      <Box sx={{ width: { xs: 320, sm: 450 }, p: 3 }}>
+      <Box
+        sx={{
+          width: { xs: 330, sm: 460 },
+          p: 3,
+          height: '100%',
+          background: 'linear-gradient(180deg, #1b2431 0%, #111827 100%)',
+          color: '#f9fafb'
+        }}
+      >
         {request && (
           <Stack spacing={2}>
-            <Typography variant="h6">Leave Request Details</Typography>
+            <Typography className="section-title" variant="h5" color="inherit">
+              Request Chronicle
+            </Typography>
             <Typography variant="body2">ID: {request.id}</Typography>
             <Typography variant="body2">User: {request.userName}</Typography>
             <Typography variant="body2">Client: {request.client}</Typography>
@@ -48,55 +58,31 @@ export default function DetailsDrawer({
             <Typography variant="body2">Duration: {request.durationDays.toFixed(2)} business days</Typography>
             <Typography variant="body2">Reason: {request.reason}</Typography>
 
-            <Typography variant="subtitle2" sx={{ mt: 1 }}>
+            <Typography variant="subtitle2" sx={{ mt: 1.5, opacity: 0.8 }}>
               Audit Trail
             </Typography>
             <Stack spacing={0.75}>
               {request.history.slice().reverse().slice(0, 8).map((entry, index) => (
-                <Typography key={`${entry.at}-${index}`} variant="caption" color="text.secondary">
+                <Typography key={`${entry.at}-${index}`} variant="caption" sx={{ opacity: 0.78 }}>
                   {formatDateTime(entry.at)} | {entry.actorRole} | {entry.action}
                   {entry.note ? ` | ${entry.note}` : ''}
                 </Typography>
               ))}
             </Stack>
 
-            <Button variant="outlined" startIcon={<EditIcon />} onClick={() => onEdit(request)} disabled={!canEdit}>
+            <Button variant="outlined" startIcon={<EditIcon />} onClick={() => onEdit(request)} disabled={!canEdit} sx={{ color: '#fff', borderColor: 'rgba(255,255,255,0.35)' }}>
               Edit Request
             </Button>
-            <Button
-              variant="outlined"
-              color="success"
-              startIcon={<CheckCircleIcon />}
-              disabled={!canApproveReject}
-              onClick={() => onAction('approve', request)}
-            >
+            <Button variant="outlined" color="success" startIcon={<CheckCircleIcon />} disabled={!canApproveReject} onClick={() => onAction('approve', request)}>
               Approve Request
             </Button>
-            <Button
-              variant="outlined"
-              color="error"
-              startIcon={<HighlightOffIcon />}
-              disabled={!canApproveReject}
-              onClick={() => onAction('reject', request)}
-            >
+            <Button variant="outlined" color="error" startIcon={<HighlightOffIcon />} disabled={!canApproveReject} onClick={() => onAction('reject', request)}>
               Reject Request
             </Button>
-            <Button
-              variant="outlined"
-              color="warning"
-              startIcon={<BlockIcon />}
-              disabled={!canCancel}
-              onClick={() => onAction('cancel', request)}
-            >
+            <Button variant="outlined" color="warning" startIcon={<BlockIcon />} disabled={!canCancel} onClick={() => onAction('cancel', request)}>
               Cancel Request
             </Button>
-            <Button
-              variant="outlined"
-              color="error"
-              startIcon={<DeleteIcon />}
-              disabled={!canDelete}
-              onClick={() => onAction('delete', request)}
-            >
+            <Button variant="outlined" color="error" startIcon={<DeleteIcon />} disabled={!canDelete} onClick={() => onAction('delete', request)}>
               Delete Request
             </Button>
           </Stack>

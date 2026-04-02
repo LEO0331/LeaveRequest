@@ -34,7 +34,10 @@ export default function Filters({
   groupSummary
 }: FiltersProps) {
   return (
-    <Paper sx={{ p: 2 }}>
+    <Paper className="hero-panel stagger-reveal delay-3" sx={{ p: { xs: 1.25, md: 2.2 } }}>
+      <Typography className="section-title" variant="h6" sx={{ mb: 1 }}>
+        Precision Filters
+      </Typography>
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
         <TextField
           fullWidth
@@ -94,11 +97,21 @@ export default function Filters({
         />
       </Stack>
 
-      <Stack mt={2} direction="row" alignItems="center" spacing={1}>
+      <Stack mt={{ xs: 1.1, md: 2 }} direction="row" alignItems="center" spacing={{ xs: 0.6, md: 1 }} flexWrap="wrap">
         <Switch checked={groupByClient} onChange={(event) => onGroupByClientChange(event.target.checked)} />
-        <Typography variant="body2">Group by client summary</Typography>
+        <Typography variant="body2" sx={{ minWidth: 140 }}>
+          Client pulse
+        </Typography>
         {groupByClient &&
-          groupSummary.map(([client, count]) => <Chip key={client} size="small" label={`${client}: ${count}`} />)}
+          groupSummary.map(([client, count]) => (
+            <Chip
+              className="interactive-chip"
+              key={client}
+              size="small"
+              label={`${client}: ${count}`}
+              sx={{ background: 'rgba(223, 90, 61, 0.13)', border: '1px solid rgba(223, 90, 61, 0.25)' }}
+            />
+          ))}
       </Stack>
     </Paper>
   );
