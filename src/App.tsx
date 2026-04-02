@@ -558,6 +558,7 @@ export default function App() {
           <input
             ref={importInputRef}
             type="file"
+            aria-label="Import CSV file"
             accept=".csv,text/csv"
             style={{ display: 'none' }}
             onChange={(event) => {
