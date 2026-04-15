@@ -98,6 +98,13 @@ npm run build
 npm test
 ```
 
+### End-to-End Test (Playwright)
+
+```bash
+npx playwright install chromium
+npm run test:e2e
+```
+
 ## Unit Tests
 
 Tests are included for:
@@ -111,6 +118,18 @@ Tests are included for:
   - required field/date rules
   - leave balance limit enforcement
   - used-balance aggregation logic
+
+## E2E Tests
+
+Playwright E2E coverage now includes:
+
+- Home to dashboard navigation (and return to home)
+- Employee creates and cancels a leave request
+- Manager approves and deletes a submitted request
+
+Spec file:
+
+- [tests/e2e/user-flow.spec.ts](/Users/Leo/Documents/LeaveRequest/tests/e2e/user-flow.spec.ts)
 
 ## CSV Format
 

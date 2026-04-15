@@ -1,9 +1,10 @@
-import { Box, Button, Chip, Drawer, Stack, Typography } from '@mui/material';
+import { Box, Button, Chip, Drawer, IconButton, Stack, Typography } from '@mui/material';
 import BlockIcon from '@mui/icons-material/Block';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import HighlightOffIcon from '@mui/icons-material/HighlightOff';
+import CloseIcon from '@mui/icons-material/Close';
 import { statusColor } from '../lib/app-layer';
 import { formatDateTime } from '../lib/date';
 import { ActionType } from '../lib/app-layer';
@@ -31,7 +32,13 @@ export default function DetailsDrawer({
   onAction
 }: DetailsDrawerProps) {
   return (
-    <Drawer anchor="right" open={Boolean(request)} onClose={onClose}>
+    <Drawer
+      anchor="right"
+      variant="persistent"
+      open={Boolean(request)}
+      onClose={onClose}
+      PaperProps={{ sx: { borderLeft: '1px solid rgba(255,255,255,0.08)' } }}
+    >
       <Box
         sx={{
           width: { xs: 330, sm: 460 },
@@ -43,9 +50,14 @@ export default function DetailsDrawer({
       >
         {request && (
           <Stack spacing={2}>
-            <Typography className="section-title" variant="h5" color="inherit">
-              Request Chronicle
-            </Typography>
+            <Stack direction="row" alignItems="center" justifyContent="space-between">
+              <Typography className="section-title" variant="h5" color="inherit">
+                Request Chronicle
+              </Typography>
+              <IconButton aria-label="Close request details" onClick={onClose} sx={{ color: '#f9fafb' }}>
+                <CloseIcon />
+              </IconButton>
+            </Stack>
             <Typography variant="body2">ID: {request.id}</Typography>
             <Typography variant="body2">User: {request.userName}</Typography>
             <Typography variant="body2">Client: {request.client}</Typography>

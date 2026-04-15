@@ -612,16 +612,18 @@ export default function App() {
         </Stack>
       )}
 
-      <DetailsDrawer
-        request={selectedRequest}
-        canEdit={Boolean(canEdit)}
-        canApproveReject={Boolean(canApproveReject)}
-        canCancel={Boolean(canCancel)}
-        canDelete={Boolean(canDelete)}
-        onClose={() => setSelectedId(null)}
-        onEdit={openEditForm}
-        onAction={openActionDialog}
-      />
+      {selectedRequest ? (
+        <DetailsDrawer
+          request={selectedRequest}
+          canEdit={Boolean(canEdit)}
+          canApproveReject={Boolean(canApproveReject)}
+          canCancel={Boolean(canCancel)}
+          canDelete={Boolean(canDelete)}
+          onClose={() => setSelectedId(null)}
+          onEdit={openEditForm}
+          onAction={openActionDialog}
+        />
+      ) : null}
 
       <Dialog open={formOpen} onClose={closeForm} fullWidth maxWidth="sm">
         <DialogTitle>{isEditMode ? 'Edit Leave Request' : 'Add Leave Request'}</DialogTitle>

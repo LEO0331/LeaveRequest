@@ -19,6 +19,8 @@ export default defineConfig({
   base: 'https://leo0331.github.io/LeaveRequest/',
   test: {
     environment: 'jsdom',
-    setupFiles: ['./src/test/setup.ts']
+    setupFiles: ['./src/test/setup.ts'],
+    include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'src/**/*.spec.ts', 'src/**/*.spec.tsx'],
+    exclude: ['tests/e2e/**']
   }
 });
