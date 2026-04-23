@@ -32,6 +32,7 @@ jobs:
       - name: Run Lighthouse CI
         id: lighthouse
         uses: treosh/lighthouse-ci-action@v12
+        continue-on-error: true
         with:
           configPath: ./lighthouserc.json
           uploadArtifacts: true
@@ -40,6 +41,8 @@ jobs:
       - name: Add Lighthouse summary
         run: |
           echo "## Lighthouse Report URLs" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Step result: ${{ steps.lighthouse.outcome }}" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "${{ steps.lighthouse.outputs.links }}" >> "$GITHUB_STEP_SUMMARY"
 

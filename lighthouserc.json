@@ -34,12 +34,27 @@
             "minScore": 0.9
           }
         ],
-        "network-dependency-tree-insight": "off",
-        "unused-javascript": "warn",
-        "valid-source-maps": "off",
-        "bootup-time": "warn",
-        "render-blocking-insight": "warn",
-        "render-blocking-resources": "warn"
+        "network-dependency-tree-insight": [
+          "off"
+        ],
+        "unused-javascript": [
+          "warn",
+          {
+            "maxLength": 2
+          }
+        ],
+        "valid-source-maps": [
+          "off"
+        ],
+        "bootup-time": [
+          "warn"
+        ],
+        "render-blocking-insight": [
+          "warn"
+        ],
+        "render-blocking-resources": [
+          "warn"
+        ]
       }
     },
     "upload": {
