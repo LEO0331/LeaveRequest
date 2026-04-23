@@ -172,6 +172,7 @@ Lighthouse CI (PR + manual trigger):
 3. Uploads a temporary public report dashboard URL
 4. Writes the URL to the GitHub Action Summary
 5. Posts the URL as a PR comment (pull requests only)
+6. Enforces category gates for accessibility, SEO, and best practices; performance is reported as warning for trend tracking
 
 ### Required GitHub Setting
 
