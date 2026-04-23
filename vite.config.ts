@@ -16,7 +16,7 @@ export default defineConfig({
       threshold: 10240
     })
   ],
-  base: 'https://leo0331.github.io/LeaveRequest/',
+  base: '/LeaveRequest/',
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],

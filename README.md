@@ -156,6 +156,7 @@ Notes:
 Workflow file:
 
 - [.github/workflows/deploy.yml](/Users/Leo/Documents/LeaveRequest/.github/workflows/deploy.yml)
+- [.github/workflows/lighthouse.yml](/Users/Leo/Documents/LeaveRequest/.github/workflows/lighthouse.yml)
 
 On push to `main` (or manual trigger), the workflow:
 
@@ -163,6 +164,14 @@ On push to `main` (or manual trigger), the workflow:
 2. Runs `npm test`
 3. Runs `npm run build`
 4. Deploys `dist/` to GitHub Pages
+
+Lighthouse CI (PR + manual trigger):
+
+1. Builds production assets
+2. Runs Lighthouse against `http://127.0.0.1:4173/LeaveRequest/`
+3. Uploads a temporary public report dashboard URL
+4. Writes the URL to the GitHub Action Summary
+5. Posts the URL as a PR comment (pull requests only)
 
 ### Required GitHub Setting
 

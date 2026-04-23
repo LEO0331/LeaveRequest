@@ -1,0 +1,18 @@
+{
+  "ci": {
+    "collect": {
+      "numberOfRuns": 1,
+      "startServerCommand": "npm run preview -- --host 127.0.0.1 --port 4173 --strictPort",
+      "startServerReadyPattern": "http://127.0.0.1:4173/",
+      "url": [
+        "http://127.0.0.1:4173/LeaveRequest/"
+      ]
+    },
+    "assert": {
+      "preset": "lighthouse:recommended"
+    },
+    "upload": {
+      "target": "temporary-public-storage"
+    }
+  }
+}
